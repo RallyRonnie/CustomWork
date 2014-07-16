@@ -11,19 +11,26 @@
 
 	<!--Include SDK-->
 	<script type="text/javascript" src="/apps/2.0rc2/sdk.js"></script>
-
-	<!--App code-->
 	<script type="text/javascript">
+//
+// This app creates a Rally Grid containing the defects and stories in the selected Iteration
+// then sums up the total days each item was in the defined states. The state can be any
+// valid pull-down field. KanbanState is a good example. The default is Rally's internal
+// ScheduleState.
+// 
+// *** Update "timeInField" below to your specific field. Note: if it is a custom field
+//        then prefix it with "c_" (i.e. "c_KanbanState")
+//        You must also update the "timeInFieldStates" array to match the pull-down values
+//        of the timeInField field.
+//
 		var app = this;
 		var timeInField = "ScheduleState";
 		var iid;
 		var timeInFieldStates = [
-			"Idea",
 			"Defined",
 			"In-Progress",
 			"Completed",
-			"Accepted",
-			"Released"
+			"Accepted"
 		];
 
 		var shirtSizeLUT = {
@@ -127,7 +134,8 @@
 									var cycleTimes = {
 										id: formattedID,
 										name: recordsByStory[0].get("Name"),
-										planEstimate: shirtSizeLUT[Rally.util.Array.last(recordsByStory).get("PlanEstimate")],
+//										planEstimate: shirtSizeLUT[Rally.util.Array.last(recordsByStory).get("PlanEstimate")],
+										planEstimate: Rally.util.Array.last(recordsByStory).get("PlanEstimate"),
 										currentStateOfStory: currentStateOfStory
 									};
 
