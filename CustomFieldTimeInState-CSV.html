@@ -49,9 +49,7 @@
 				componentCls: "app",
 
 				launch: function() {
-				appf = this;
-				console.log("in launch");
-
+					appf = this;
 					if (!self.exportButton) {
 						self.exportButton = this.add({
 							xtype: 'rallybutton',
@@ -77,12 +75,10 @@
 					}
 				},
 				_addMenu: function() {
-					console.log("in addmenu");
 					var dateMenu = Ext.create('Ext.menu.DatePicker', {
 						scope: this,
 						handler: function(dp, date) {
 							app.fromDate = date;
-							console.log(appf);
 							appf._launch();
 						}
 					});
@@ -150,9 +146,9 @@
 									})[0];
 									if (currentStateOfStorySnapshot) {
 										currentStateOfStory = currentStateOfStorySnapshot.get(timeInField);
-										console.log("GOOD state - ", recordsByStory);
+//										console.log("GOOD state - ", recordsByStory);
 									} else {
-											console.log("not good state - ", recordsByStory);
+//											console.log("not good state - ", recordsByStory);
 									}
 									var formattedID = recordsByStory[0].get("FormattedID");
 									var cycleTimes = {
@@ -243,7 +239,6 @@
 				},
 
 				_onClickExport: function () {
-					console.log("in export");
 					if ( /*@cc_on!@*/ 0) { //Exporting to Excel not supported in IE
 						Ext.Msg.alert('Error', 'Exporting to CSV is not supported in Internet Explorer. Please switch to a different browser and try again.');
 					} else if (document.getElementById('mygrid')) {
