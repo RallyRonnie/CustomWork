@@ -24,8 +24,10 @@
 //        of the timeInField field.
 //
 		var app = this;
+		var appf;
 		var timeInField = "ScheduleState";
 		var iid;
+		var fromDate;
 		var timeInFieldStates = [
 			"Defined",
 			"In-Progress",
@@ -33,52 +35,71 @@
 			"Accepted"
 		];
 
-		var shirtSizeLUT = {
-			0: "U",
-			1: "X",
-			3: "S",
-			5: "M",
-			8: "L"
-		};
+//		var shirtSizeLUT = {
+//			0: "U",
+//			1: "X",
+//			3: "S",
+//			5: "M",
+//			8: "L"
+//		};
 
 		Rally.onReady(function () {
 			Ext.define("CustomApp", {
-				extend: 'Rally.app.TimeboxScopedApp',
-				componentCls: 'app',
-				scopeType: 'iteration',
-				//	html:'<div title="Capacity records are only created from the Team Status page. Making an initial entry there allows the display and edit here."><h1>Goto Track->Team Status Page to enter initial Capacities</h1></div>',
-				comboboxConfig: {
-					fieldLabel: 'Select an Iteration:',
-					labelWidth: 200,
-					width: 500
-				},
-				onScopeChange: function () {
-					//		this._showMask('Updating');
-					app.iid = this.getContext().getTimeboxScope().getRecord().get("ObjectID");
+				extend: "Rally.app.App",
+				componentCls: "app",
+
+				launch: function() {
+				appf = this;
+				console.log("in launch");
+
 					if (!self.exportButton) {
 						self.exportButton = this.add({
 							xtype: 'rallybutton',
 							text: 'Export to Excel',
+							border: 1,
+							padding: 4,
+							margin: 5,
 							handler: this._onClickExport,
 							visible: true
 						});
 					}
-
-
-
-					this._launch();
+					if (!self.optionsButton) {
+						appf = this;
+						self.optionsButton = this.add({
+							xtype: 'rallybutton',
+							text: 'Run Report',
+							border: 1,
+							padding: 4,
+							margin: 5,
+							handler: this._addMenu,
+							visible: true
+						});
+					}
 				},
+				_addMenu: function() {
+					console.log("in addmenu");
+					var dateMenu = Ext.create('Ext.menu.DatePicker', {
+						scope: this,
+						handler: function(dp, date) {
+							app.fromDate = date;
+							console.log(appf);
+							appf._launch();
+						}
+					});
 
-
-				//                extend: "Rally.app.App",
-				//                componentCls: "app",
-
+					Ext.create('Ext.menu.Menu', {
+						items: [{
+							text: 'Choose Start Date',
+							menu: dateMenu
+						}]
+					}).showAt([185, 15]);
+				},
 				_launch: function () {
 					var self = this;
 					Ext.getBody().mask('Working...');
 					Ext.create("Rally.data.lookback.SnapshotStore", {
-						fetch: ["_UnformattedID", "_TypeHierarchy", "Name", "PlanEstimate", timeInField, "ScheduleState"],
-						hydrate: [timeInField, "ScheduleState"],
+						fetch: ["FormattedID", "_TypeHierarchy", "Name", "PlanEstimate", timeInField, "ScheduleState"],
+						hydrate: [timeInField],
 						filters: [{
 							property: "_ProjectHierarchy",
 							value: {
@@ -89,10 +110,16 @@
 							value: {
 								"$in": ["HierarchicalRequirement", "Defect"]
 							}
-						}, {
-							property: "Iteration",
-							value: app.iid
-						}],
+						}, 
+//						{
+//							property: "Iteration",
+//							value: app.iid
+//						},
+						{
+							property: "_ValidFrom",
+							value: { $gt: app.fromDate }
+							}
+						],
 						sorters: [{
 							property: "_ValidTo",
 							direction: "ASC"
@@ -121,16 +148,13 @@
 									var currentStateOfStorySnapshot = Ext.Array.filter(recordsByStory, function (record) {
 										return record.get("_ValidTo").indexOf("9999") !== -1;
 									})[0];
-									if (currentStateOfStorySnapshot)
+									if (currentStateOfStorySnapshot) {
 										currentStateOfStory = currentStateOfStorySnapshot.get(timeInField);
-
-									if (currentObjectID === 11272626715) {
-										Ext.Array.each(recordsByStory, function (record) {
-											console.log(record.get(timeInField));
-										});
+										console.log("GOOD state - ", recordsByStory);
+									} else {
+											console.log("not good state - ", recordsByStory);
 									}
-
-									var formattedID = (Ext.Array.contains(recordsByStory[0].get("_TypeHierarchy"), -51006) ? "DE" : "US") + recordsByStory[0].get("_UnformattedID");
+									var formattedID = recordsByStory[0].get("FormattedID");
 									var cycleTimes = {
 										id: formattedID,
 										name: recordsByStory[0].get("Name"),
@@ -260,11 +284,10 @@
 							window.location.href = 'data:application/vnd.ms-excel;base64,' + base64(format(template, ctx));
 							Ext.getBody().unmask();
 						}, 500);
+					} else {
+						Ext.Msg.alert('Export Warning','You must select a date and run the report before you can export');
 					}
 				}
-
-
-
 			});
 
 			Rally.launchApp("CustomApp", {
