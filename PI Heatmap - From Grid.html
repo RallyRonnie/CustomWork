@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PI Heatmap</title>
+
+    <script type="text/javascript" src="/apps/2.0rc2/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function() {
+            
+            var progressColors = { //move colors into css file (class would be defined, style would be hex value for light gray in the css )
+                "Defined":             '#E0E0E0', // light gray
+                "In-Progress":                 '#00A9E0', // cyan
+                "Completed":                   '#8DC63F', // lime
+                "problem":                '#EF3F35' // red
+            };
+            
+            var userStoryFetch = ['FormattedID', 'Name', 'ScheduleState', 'Blocked', 'BlockedReason', '_ref'];
+            var portfolioItemFetch = ['Name', 'State', 'FormattedID', 'Children', 'UserStories', 'ActualStartDate', 'ActualEndDate', 'DirectChildrenCount', '_ref', 'PlannedEndDate', 'PlannedStartDate'];
+            var storyStates = {};
+            
+            Ext.define('CustomApp', {
+                extend: 'Rally.app.App',
+                componentCls: 'app',
+                requires: ['Deft.Deferred'],
+            
+                launch: function() {
+                    PortfolioItemTypeLoader.getModelNames(this.setModelNames, this);
+                },
+            
+                createDescriptiveText: function() {
+                    this.add({
+                        xtype: 'text',
+                        text: "",
+                        id: 'descriptiveText'
+                    });
+                },
+            
+                setDescriptiveText: function(text) {
+                    if(!this.down("#descriptiveText")) {
+                        this.createDescriptiveText();
+                    }
+                    this.down("#descriptiveText").setText(text);
+                },
+            
+                setErrorDescriptiveText: function() {
+                    this.setDescriptiveText("Your portfolio item failed to load. Please select a different one");
+                },
+            
+                removeDescriptiveText: function() {
+                    if(!this.down("#descriptiveText")) {
+                        this.createDescriptiveText();
+                    }
+                    this.down("#descriptiveText").setText("");
+                },
+            
+                configureMessageListeners: function(models, piTypeNames) {
+                    this.subscribe(this, Rally.Message.objectFocus, function(record) {
+                        this.itemSelected(record, models, piTypeNames);
+                    }, this);
+            
+                },
+            
+                setModelNames: function(store, data) {
+                    var PILength = data.length;
+            
+                    var piTypeNames =  {};
+                    var typeDescription = "";
+                    for(var i = 0; i < data.length; i++){
+                        typeDescription = data[i].get("TypePath").replace("/", "").toLowerCase()
+                        piTypeNames[typeDescription] = {
+                            Name: data[i].get("Name"),
+                            TypePath: data[i].get("TypePath"),
+                            ChildTypePath: data[i+1] ? data[i+1].get("TypePath") : 'UserStory'
+                        };
+                    }
+            
+                    var piTypes = ['UserStory'];
+            
+                    for (var key in piTypeNames) {
+                        piTypes.push(piTypeNames[key].TypePath);
+                    }
+                
+                    ModelLoader.beginLoadModels(piTypes, function(models) {
+                        this.modelsLoaded(models, piTypeNames);
+                    }, this);
+                },
+            
+            
+                itemSelected: function(record, models, piTypeNames) {
+                    if(!this.getPortfolioItemLockCheckbox().getValue()) {
+                        this.removeDescriptiveText();
+            
+                        var selectedPortfolioItemID = record.get("FormattedID");
+                        var portfolioItemType = record.get("_type") ? record.get("_type").replace("/", "") : PortfolioItemLoader.parsePITypeFromId(record.id);
+            
+                        this.setUpPortfolioItemLoad(selectedPortfolioItemID, portfolioItemType, models, piTypeNames);
+                    }
+            
+                },
+            
+                setUpPortfolioItemLoad: function(selectedPortfolioItemID, portfolioItemType, models, piTypeNames) {
+                   this.setLoading(true);
+            
+                    var modelName = piTypeNames[portfolioItemType] ? piTypeNames[portfolioItemType].TypePath : "";
+                    var childModelName = piTypeNames[portfolioItemType] ? piTypeNames[portfolioItemType].ChildTypePath : "";
+                    var piModel = models[modelName];
+            
+                    if(modelName === "") {
+                        this.setLoading(false);
+                        if(!ChartUtility.getPIHeatmapChart(this)) {
+                            this.setErrorDescriptiveText();
+                        }
+                    } else {
+                        
+                        var callback = function(store, data, success){
+                            this.portfolioItemLoaded(store, data, success, childModelName, piTypeNames);
+                        };
+                
+                       PortfolioItemLoader.beginPortfolioItemLoad(selectedPortfolioItemID, piModel, piTypeNames, portfolioItemFetch, callback, this);
+                    }
+                },
+            
+                updatePortfolioItemLockPreference: function(portfolioItemLock) {
+                    if(portfolioItemLock) {
+                        this.disableChooserButton();
+                    } else {
+                        this.enableChooserButton();
+                    }
+            
+                    Rally.data.PreferenceManager.update({
+                        appID: this.getAppId(),
+                        settings: {
+                            portfolioItemLock: portfolioItemLock,
+                        }
+                    });
+            
+                },
+            
+                disableChooserButton: function() {
+                    this.getPortfolioItemChooserButton().setDisabled(true);
+                },
+            
+                enableChooserButton: function() {
+                    this.getPortfolioItemChooserButton().setDisabled(false);
+                },
+            
+                enablePortfolioItemLockCheckbox: function() {
+                    this.getPortfolioItemLockCheckbox().setDisabled(false);
+                },
+            
+                updateSelectedPortfolioItemPreference: function(selectedPortfolioItemID, portfolioItemType) {
+                    this.enablePortfolioItemLockCheckbox();
+            
+                    Rally.data.PreferenceManager.update({
+                        appID: this.getAppId(),
+                        settings: {
+                            portfolioItemFormattedID: selectedPortfolioItemID,
+                            portfolioItemType: portfolioItemType
+                        }
+                    });
+                },
+            
+                loadSelectedPortfolioItemPreference: function(models, piTypeNames) {
+                    Rally.data.PreferenceManager.load({
+                        appID: this.getAppId(),
+                        success: function(prefs) {
+                            var portfolioItemLockCheckbox = this.getPortfolioItemLockCheckbox();
+                            portfolioItemLockCheckbox.setValue(prefs.portfolioItemLock)
+            
+                            var selectedPortfolioItemID = prefs.portfolioItemFormattedID;
+                            if(selectedPortfolioItemID) {
+                                this.enablePortfolioItemLockCheckbox();
+            
+                                var portfolioItemType = prefs.portfolioItemType;
+                                this.setUpPortfolioItemLoad(selectedPortfolioItemID, portfolioItemType, models, piTypeNames);
+                            } else {
+                                this.setDescriptiveText("Please select a portfolio item");
+                            }
+            
+            
+                        }, 
+                        scope: this
+                    });
+                },
+            
+                modelsLoaded: function (models, piTypeNames) {      
+                    var field = models["UserStory"].getField('ScheduleState'); 
+                    AllowedValuesLoader.loadAllowedValues(field, this.createStateMapForStories, {
+                        models: models,
+                        piTypeNames: piTypeNames
+                    }, this);
+                },
+                
+                createStateMapForStories: function(allowedValues, options) { 
+                    var stateMap = ["Defined", "In-Progress", "Completed"];
+                    var stateMapIndex = 0;
+            
+                    Ext.each(allowedValues, function(value){
+                        var state = value.data.StringValue;
+                        if (state) {
+                            if(state == stateMap[stateMapIndex+1]) {
+                                stateMapIndex++;
+                            }
+                            storyStates[state] = stateMap[stateMapIndex];
+                        }
+                        
+                    });
+            
+                    this.prepareForPortfolioItemSelection(options.variables.models, options.variables.piTypeNames);
+            
+                },
+            
+                prepareForPortfolioItemSelection: function(models, piTypeNames) {
+                    this.createPortfolioItemChooserButton(models, piTypeNames);
+            
+                    this.createPortfolioItemLockCheckbox();
+                    this.configureMessageListeners(models, piTypeNames);
+                    this.loadSelectedPortfolioItemPreference(models, piTypeNames);
+                },
+            
+                createPortfolioItemChooserButton: function(models, piTypeNames) {
+                    this.add({
+                        xtype: 'button',
+                        text: 'Choose',
+                        id: 'piChooserButton',
+                        handler: function() {
+                            this.openPortfolioItemChooser(models, piTypeNames);
+                        },
+                        scope: this
+                    });
+                },
+            
+                getPortfolioItemChooserButton: function() {
+                    return this.down("#piChooserButton");
+                },
+            
+                getPortfolioItemLockCheckbox: function() {
+                    return this.down("#portfolioItemLock");
+                },
+            
+                createPortfolioItemLockCheckbox: function() {
+                    this.add({
+                        xtype: 'checkbox',
+                        boxLabel: 'Lock my portfolio item choice',
+                        id: 'portfolioItemLock',
+                        handler: function(checkbox, checked) {
+                            this.updatePortfolioItemLockPreference(checked);
+                        },
+                        disabled: true,
+                        scope: this
+                    });
+                },
+            
+                openPortfolioItemChooser: function(models, piTypeNames) {
+                   Ext.create('Rally.ui.dialog.ChooserDialog', {
+                        artifactTypes: ['portfolioitem'],
+                        id: 'piChooser',
+                        autoShow: true,
+                        title: 'Choose Portfolio Items',
+            
+                        listeners: {
+                            artifactChosen: function(selectedRecord, options){
+                                options.scope.itemSelected(selectedRecord, options.models, options.piTypeNames);    
+                            }, 
+                            models: models,
+                            piTypeNames: piTypeNames,
+                            scope: this
+                        },
+                        scope: this
+                    });
+                },
+            
+                portfolioItemLoaded: function(store, data, success, childModel, piTypeNames) {
+                    if(data.length == 0) {
+                        if(!ChartUtility.getPIHeatmapChart(this)) {
+                            this.setErrorDescriptiveText();
+                        }
+                        this.setLoading(false);
+                    } else {
+            
+                        var portfolioItem = data[0];
+                        this.updateSelectedPortfolioItemPreference(portfolioItem.get("FormattedID"), portfolioItem.get("_type").replace("/", ""));
+            
+                        var fetch = portfolioItemFetch
+                        var childCollectionName = 'Children';
+                        var childrenAreUserStories = false;
+                        if(childModel === 'UserStory') {
+                            childCollectionName = 'UserStories';
+                            fetch = userStoryFetch;
+                            childrenAreUserStories = true;
+                        }   
+            
+                        var callback = function(records, operations, success) {
+                            this.childrenLoaded(records, operations, success, childrenAreUserStories, piTypeNames);
+                        }          
+            
+                        PortfolioItemLoader.loadChildrenForPortfolioItem(portfolioItem, fetch, childCollectionName, childModel, callback, this);
+                    }
+                },
+                
+                childrenLoaded: function(records, operations, success, childrenAreUserStories, piTypeNames) {
+            
+                    var children = [];
+                    children = children.concat(records);
+            
+                    var portfolioItem = operations.options.record;
+                    var childChartData = [];
+                    var grandChildChartData = [];
+                    if(records.length === 0) {
+                       ChartUtility.createEmptyChart(portfolioItem, childChartData, grandChildChartData, this)
+                    } else {
+            
+                        var portfolioItemType = PortfolioItemLoader.parsePITypeFromId(records[0].id);
+                        var color = "";
+                        var pointSize = 1; 
+                        var state = "";
+                        var hasChildren = false;
+                        Ext.each(records, function (record) { 
+            
+                            if(Utility.typeIsUserStory(portfolioItemType)) {
+                                ChartUtility.addPointForStoryChildren(record, childChartData, grandChildChartData, color, pointSize, state, hasChildren);
+                            } else {
+                                ChartUtility.addPointForPortfolioItemChildren(record, childChartData, grandChildChartData, color, pointSize, state, hasChildren);
+                            }
+                        }, this);
+            
+                        if(Utility.typeIsUserStory(portfolioItemType)) {
+                            ChartUtility.createChart(portfolioItem, childChartData, grandChildChartData, this);
+                        } else {
+                            this.setUpGrandChildLoad(records, piTypeNames, portfolioItem, portfolioItemType, childChartData, grandChildChartData, children, childrenAreUserStories);
+                           
+                        }
+                    }   
+                },
+            
+                setUpGrandChildLoad: function(records, piTypeNames, portfolioItem, portfolioItemType, childChartData, grandChildChartData, children, childrenAreUserStories) {
+                    var collectionName = 'Children';
+                    var fetch = portfolioItemFetch;
+            
+                    var grandChildType = piTypeNames[portfolioItemType] ? piTypeNames[portfolioItemType].ChildTypePath : "UserStory";
+                    var grandChildModel = grandChildType;
+                    if(grandChildType === 'UserStory') {
+                        collectionName = 'UserStories';
+                        grandChildModel = "HierarchicalRequirement";
+                        fetch = userStoryFetch;
+                        childrenAreUserStories = true;
+                    } else {
+                        childrenAreUserStories = false;
+                    }
+            
+                    var callback = function(records) {
+                        this.grandChildrenLoadedForChildren(records, portfolioItem, childChartData, grandChildChartData, childrenAreUserStories);            
+                    };
+            
+                    PortfolioItemLoader.loadChildrenForPortfolioItems(portfolioItem, collectionName, grandChildModel, fetch, callback, children, childChartData, grandChildChartData, this);
+            
+                },
+            
+                grandChildrenLoadedForChildren: function(records, portfolioItem, childChartData, grandChildChartData, childrenAreUserStories){
+                    for(var i = 0; i < records.length; i++) {
+                        if(records[i].length == 0) {
+                            records[i].push({
+                                title: "no artifacts"
+                            });
+                        }
+                        grandChildChartData = ChartUtility.addDataPointsForGrandChildCollection(records[i], grandChildChartData, childrenAreUserStories);
+                    }
+                    ChartUtility.createChart(portfolioItem, childChartData, grandChildChartData, this);
+            
+                }
+            
+            });
+            
+            
+            Ext.define('PortfolioItemTypeLoader', {
+                singleton: true,
+                getModelNames: function(callback, scope) {
+                    Ext.create(Rally.data.WsapiDataStore, {
+                            autoLoad: true,
+                            remoteFilter: false,
+                            model: 'TypeDefinition',
+                            sorters: {
+                                property: 'Ordinal',
+                                direction: 'Desc'
+                            },
+                            filters: [
+                                {
+                                    property: 'Parent.Name',
+                                    operator: '=',
+                                    value: 'Portfolio Item'
+                                },
+                                {
+                                    property: 'Creatable',
+                                    operator: '=',
+                                    value: 'true'
+                                }
+                            ],
+                            listeners: {
+                            load: callback,
+                            scope: scope
+                        }
+                    });
+                    
+                }
+            });
+            Ext.define('PortfolioItemLoader', {
+                singleton: true,
+                beginPortfolioItemLoad : function(piID, piModel, piTypeNames, fetch, callback, scope) {
+                    Ext.create('Rally.data.WsapiDataStore', {
+                        model: piModel,
+                        autoLoad: true,
+                        filters: [
+                            {
+                                property: 'FormattedID',
+                                operator: '=',
+                                value: piID
+                            }
+                        ],
+                        fetch: fetch,
+                        listeners: {
+                            load: callback,
+                            scope: scope
+                        }
+                    });
+                },
+            
+                loadChildrenForPortfolioItems: function(selectedPI, collectionName, modelName, fetch, callback, children, childChartData, grandChildChartData, scope) {
+                    //class
+                    var promises = [];
+                    Ext.each(children, function(portfolioItem) { 
+                        promises.push(this.loadChildrenForPortfolioItem(portfolioItem, fetch, collectionName, modelName, Ext.emptyFn, this)); 
+                    }, this);   
+            
+                    var me = this;
+                    Deft.Promise.all( promises ).then(
+                    {
+                        success: callback,
+                        scope: scope,
+                        failure: function( error ) {
+                            //error handling?
+                        }
+                    });
+                },
+            
+                loadChildrenForPortfolioItem: function(portfolioItem, fetch, collectionName, modelName, callback, scope) {
+                    if(portfolioItem) {
+                        return this.grabCollection( portfolioItem, fetch, collectionName, modelName, callback, scope);
+                    }
+                    return 0;
+                },
+            
+                 grabCollection: function(record, fetch, collectionName, model, callback, scope) {
+                    if(record) {
+                        var collectionStore = record.getCollection(collectionName, { 
+                            model: model,
+                            fetch: fetch,
+                        });
+                        return collectionStore.load({scope:scope, callback:callback, options:{
+                            record: record
+                        }});
+                    }
+                    return 0;
+            
+                },
+            
+                parsePITypeFromId: function(id) {
+                    var idArray = id.split('.');
+                    var piType = idArray[idArray.length-1];
+            
+                    return piType.split('-')[0];
+            
+                }
+            });            Ext.define('ModelLoader', {
+                singleton: true,
+                beginLoadModels: function (models, callback, scope) {
+                    Rally.data.ModelFactory.getModels({
+                        types: models,
+                        context:{
+                            // workspace: scope.context.getWorkspaceRef(),
+                           // project: null //to query entire workspace
+                        },
+                        autoLoad: true,
+                        success: callback,
+                        scope: scope
+                    });
+            
+                },
+            });            Ext.define('AllowedValuesLoader', {
+                singleton: true,
+                loadAllowedValues: function(field, callback, variables, scope) {
+                    field.getAllowedValueStore().load({
+                        callback: callback,
+                        variables: variables,
+                        scope: scope
+                    });
+                },
+            });            Ext.define('Utility', {
+                singleton: true,
+                typeIsUserStory: function(type) {
+                   return (type === 'HierarchicalRequirement' || type === 'UserStory');
+                },
+            
+                determineStateFromActualDates: function(actualStartDate, actualEndDate) {
+                    //utility class?
+                    var state = "Defined";
+                    if(actualStartDate) {
+                        state = "In-Progress";
+                    }
+                    if(actualEndDate) {
+                        state = "Completed";
+                    }
+                    return this.colorFromStatus(state);
+                },
+            
+                colorFromStatus: function(state, blocked) { //refactor into css and classes, should get cleaner
+                   var color =  progressColors[state];
+                    if(blocked) {
+                        color = progressColors["problem"];
+                    }
+                    return color;
+                }
+            
+            });            Ext.define('ChartUtility', {
+                singleton: true,
+            
+                
+                 addPoint: function(name, color, count, rallyName, status, blocked, blockedReason, userStory, hasChildren, ref){
+                    //utility class
+                  return {
+                        name: name, // FormattedID for chart
+                        y: count,
+                        color: color,
+                        rallyName: rallyName,
+                        userStory: userStory,
+                        status: status,
+                        blockedReason: blocked ? blockedReason: null,
+                        hasChildren: hasChildren,
+                        ref: ref
+                    }
+            
+                },
+            
+                addNullPoint: function(message, userStory) {
+                    return this.addPoint(message, progressColors["Defined"], 1, null, "", false, null, userStory, null, null);
+                },
+            
+                addPointForPortfolioItemChildren: function(record, childChartData, grandChildChartData, color, pointSize, state, hasChildren) {
+                    pointSize = record.get("DirectChildrenCount") > 0 ? record.get("DirectChildrenCount") : 1;
+                    state = record.get("State") ? record.get("State").Name : "No Entry";
+                    hasChildren = record.get("DirectChildrenCount") == 0 ? false : true;
+                    color = Utility.determineStateFromActualDates(record.get("ActualStartDate"), record.get("ActualEndDate"));
+            
+                    childChartData.push(this.addPoint(record.get("FormattedID"), color, pointSize, record.get("Name"), state, false, null, false, hasChildren, record.get("_ref")));
+            
+                },
+            
+                addPointForStoryChildren: function(record, childChartData, grandChildChartData, color, pointSize, state, hasChildren) {
+                    color = Utility.colorFromStatus(storyStates[record.get("ScheduleState")], record.get("Blocked"));
+                    state = record.get("ScheduleState");
+                    childChartData.push(this.addPoint(record.get("FormattedID"), color, pointSize, record.get("Name"), state, false, null, true, hasChildren, record.get("_ref")));
+            
+                    grandChildChartData.push(this.addNullPoint("Chart does not support child stories or tasks", true));
+                },
+            
+                 addDataPointsForGrandChildCollection: function(records, grandChildChartData, childrenAreUserStories) {
+                    //different class - general chart class
+                    Ext.each( records, function (record) { 
+                        if(record.title == "no artifacts") { //make constant statics in config //share code with above grouping?
+                            grandChildChartData.push(ChartUtility.addNullPoint("No Children", true));
+                        } else {
+                            if(childrenAreUserStories) {
+                                state = record.get("ScheduleState");
+                                color = Utility.colorFromStatus(storyStates[state], record.get("Blocked"));
+                            } else {
+                                state = record.get("State") ? record.get("State").Name : "No Entry";
+                                color = Utility.determineStateFromActualDates(record.get("ActualStartDate"), record.get("ActualEndDate"));
+                            }
+            
+                            grandChildChartData.push(ChartUtility.addPoint(record.get("FormattedID"), color, 1, record.get("Name"), state, record.get("Blocked"), record.get("BlockedReason"), true, null, record.get("_ref")));
+                        }
+                    }, this); 
+                    return grandChildChartData;
+                },
+            
+                createEmptyChart: function(portfolioItem, childChartData, grandChildChartData, scope) {
+                    grandChildChartData.push(ChartUtility.addNullPoint("No Children", true));
+                    childChartData.push(ChartUtility.addNullPoint("No Children", false));
+                   
+                    this.createChart(portfolioItem, childChartData, grandChildChartData, scope);
+                },
+            
+                getPIHeatmapChart: function(scope) {
+                    return scope.down("#piHeatmapChart");
+                },
+                  
+                createChart: function(portfolioItem, childChartData, grandChildChartData, scope) {
+            
+                    var chart = this.getPIHeatmapChart(scope);
+                    if(chart) {
+                        scope.remove(chart);
+                    }
+                    var chart = Ext.create( 'Rally.ui.chart.Chart', {
+                        id: 'piHeatmapChart',
+                        portfolioItemFormattedID: portfolioItem.get("FormattedID"),
+                        chartData: {
+                                series: [
+                                {
+                                    type:'pie',
+                                    name: 'Children',
+                                    data: childChartData,
+                                    size: '60%',
+                                    dataLabels: 
+                                    {
+                                        distance: -10,
+                                        color: 'black',
+                                        style: {
+                                            fontWeight: 'bold'
+                                        }
+                                    }
+                                },
+                                {
+                                    type:'pie',
+                                    name: 'Grand Children',
+                                    data: grandChildChartData,
+                                    size: '80%',
+                                    innerSize: '60%',
+//                                    dataLabels: { enabled: false },
+                                }
+                                ],    
+            
+                            },
+            
+                        chartConfig: {
+                            chart: { 
+                                type: 'pie',
+                                width: scope.getSize().width - 100,
+                                height: scope.getSize().height - 100       
+                            },
+                            xAxis: { categories : ['A', 'B', 'C', 'D']},
+                            tooltip: {
+                                formatter:  this.formatTooltip,
+                                valuePrefix: "Count: "
+            
+                            },
+                            title: {
+                                text: portfolioItem.get("FormattedID") + " : " + portfolioItem.get("Name")
+                            },
+                            yAxis: {
+                                title: {
+                                    text: 'Progress'
+                                }
+                            },
+                            plotOptions: {
+                                pie: {
+                                    shadow: false,
+                                    center: ['50%', '50%'],
+                                    point: {
+                                        events: {
+                                            click: function(event) {
+												if (this.ref != null) Rally.nav.Manager.showDetail(this.ref);
+                                            }
+                                        }
+                                    }
+                                }
+                            },              
+                            subtitle: {
+                                useHTML:true, //class refactor
+                                text: this.buildText(portfolioItem, scope),
+                                y: 45
+                            }
+                        },
+                    });
+            
+                    scope.add(chart);
+                    chart.getEl().unmask(); //is this needed?
+                    scope.setLoading( false );
+            
+                },
+            
+                buildText: function(portfolioItem, scope) {
+                    var plannedEndDate = Rally.util.DateTime.formatWithDefault(portfolioItem.get('PlannedEndDate'));
+                    var plannedStartDate = Rally.util.DateTime.formatWithDefault(portfolioItem.get('PlannedStartDate'));
+                    var plannedEndDateFormatter = "";
+                    var plannedStartDateFormatter = "";
+                       if(plannedStartDate) {
+                        plannedStartDateFormatter = '<span>Planned Start: ' + plannedStartDate + '</span> &nbsp &nbsp &nbsp';
+                    } 
+                    if(plannedEndDate) {
+                        plannedEndDateFormatter = '<span>Planned End: ' + plannedEndDate + '</span><br/>';
+                    }
+                    return plannedStartDateFormatter + plannedEndDateFormatter + '<br/> <table align="center"><tr><td><span class="defined-sample-swatch"></span><span>Planned</td>' + '<td><span class="in-progress-sample-swatch"></span>Active</td>'+ '<td><span class="completed-sample-swatch"></span>Finished</td>'+ '<td><span class="blocked-sample-swatch"></span>Blocked</td></tr></table>';
+                },
+            
+                formatTooltip: function() {
+                    var storyCount = "";
+                    if(!this.point.userStory) {
+                        var numStories = this.point.hasChildren ? this.y : 0;
+                        storyCount = "<br/>Children: " + numStories;
+                    } 
+                    var blockedReason = "";
+                    if(this.point.blockedReason) {
+                        blockedReason = "<b>Blocked</b>: " + this.point.blockedReason;
+                    }
+                    var artifactName = this.point.rallyName ? "<b>" + this.point.name + "</b>: " + this.point.rallyName + "<br/>" : this.point.name; //change this so that it works if rallyName is null
+                    return artifactName + this.point.status + "<br/>" + storyCount + "<br/>" + blockedReason;
+                }
+                  
+            });
+
+            Rally.launchApp('CustomApp', {
+                name: 'PI Parking Lot'
+            });
+        });
+    </script>
+
+    <style type="text/css">
+        .app {
+             /* Add app styles here */
+        }
+        
+        .defined-sample-swatch {
+         	width: 15px;
+            height: 15px;
+            border: 1px solid #EEE;
+            background: #E0E0E0; /* light-gray */
+            border-radius: 5px;
+        	-moz-border-radius: 5px;
+        	-webkit-border-radius: 5px;
+        	float: left;
+        	margin: 0 1px 0 6px;
+        }
+        
+        .in-progress-sample-swatch {
+         	width: 15px;
+            height: 15px;
+            border: 1px solid #EEE;
+            background: #00A9E0; /* cyan */
+            border-radius: 5px;
+        	-moz-border-radius: 5px;
+        	-webkit-border-radius: 5px;
+        	float: left;
+        	margin: 0 1px 0 6px;
+        }
+        
+        .completed-sample-swatch {
+         	width: 15px;
+            height: 15px;
+            border: 1px solid #EEE;
+            background: #8DC63F; /* lime */
+            border-radius: 5px;
+        	-moz-border-radius: 5px;
+        	-webkit-border-radius: 5px;
+        	float: left;
+        	margin: 0 1px 0 6px;
+        }
+        
+        .blocked-sample-swatch {
+         	width: 15px;
+            height: 15px;
+            border: 1px solid #EEE;
+            background: #EF3F35; /* rally red */
+            border-radius: 5px;
+        	-moz-border-radius: 5px;
+        	-webkit-border-radius: 5px;
+        	float: left;
+        	margin: 0 1px 0 6px;
+        }
+        
+    </style>
+</head>
+<body></body>
+</html>
