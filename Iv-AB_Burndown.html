@@ -1,0 +1,35 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!-- Copyright (c) 2011 Rally Software Development Corp. All rights reserved -->
+<html>
+<head>
+<title>Alpha-Beta Sprint 1 Burndown</title>
+<meta name="Rally Burndown"    content="App Example: LoginKey RallyDataSource" />
+<meta name="Version" content="2014.01" />
+<meta name="Vendor"  content="Rally Software" />
+<script type="text/javascript" src="https://rally1.rallydev.com/apps/1.33/sdk.js?loginKey=38d140cc235467245bf272237820e3eca3defa18047d02e208c6083a374a1990|053fc15d42381507cd24b9db47bad910|3430cc910c655e9825cf221e356fe05d164606283aa09eac34df4352ffca850c814342b8e9022f7e1141029cecf4f94c|145,129,52,19,152,80,115,87,0,56,19,51,16,21,64,128"></script>
+<script type="text/javascript">
+function onLoad() {
+rally.sdk.ui.AppHeader.destroy();
+var reportConfig = {
+report: rally.sdk.ui.StandardReport.IterationBurndown,
+// width : 600,
+// height: 500,
+// Iteration 1: 19385871114, 
+// DTL Iteration 1: 19243531501
+// DTL Team 1 Iteration 1: 19289181986
+// DTL Team 2 Iteration 1: 19289182251
+// DTL Team 3 Iteration 1: 19289182528
+// DTL Team 5 Iteration 1: 19289183242
+// DTL Team 6 Iteration 1: 19289183775
+projects: [18485287322],
+iterations: [19289182528]
+};
+var report = new rally.sdk.ui.StandardReport(reportConfig);
+report.display("reportDiv");
+}
+rally.addOnLoad(onLoad);
+</script>
+<div align="center"><H1>Alpha-Beta Sprint 1 Burndown Chart</H1></div>
+<div id="reportDiv" style="float:left; width: 640px; margin-left:20px"></div>
+</body>
+</html>
