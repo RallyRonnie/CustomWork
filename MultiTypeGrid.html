@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Multi-type Grid</title>
+
+    <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function() {
+            Ext.define('Rally.example.MultiArtifactGrid', {
+                extend: 'Rally.app.App',
+                componentCls: 'app',
+            
+                launch: function() {
+// Edit the following userids to match the owners you wish to see
+					var filter = Ext.create('Rally.data.QueryFilter', {
+						property: 'Owner',
+						operator: '=',
+						value: 'paul@acme.com'
+					});
+					filter = filter.or({
+						property: 'Owner',
+						operator: '=',
+						value: 'tom@acme.com'  
+					});
+// LIST OF OWNERS - COPY/PASTE the following 5 lines and edit the owner
+					filter = filter.or({
+						property: 'Owner',
+						operator: '=',
+						value: 'david@acme.com'
+					});
+					filter.toString();
+
+                    this.add({
+                        xtype: 'rallygrid',
+// EDIT THE FOLLOWING LIST TO SET THE COLUMNS YOU WISH TO DISPLAY
+                        columnCfgs: [
+                            'FormattedID',
+                            'Name',
+                            'State',
+                            'ScheduleState',
+                            'Owner'
+                        ],
+                        context: this.getContext(),
+                        storeConfig: {
+// EDIT THE FOLLOWING LIST TO SET THE RECORD TYPES YOU WISH TO DISPLAY
+                            models: ['PortfolioItem/Epic', 'PortfolioItem/Feature', 'userstory'],
+							filters: [filter]
+                        }
+                    });
+                }
+            });
+            
+
+            Rally.launchApp('Rally.example.MultiArtifactGrid', {
+              name: 'Multi-type Grid'
+            });
+        });
+    </script>
+
+    <style type="text/css">
+        
+    </style>
+</head>
+<body></body>
+</html>
