@@ -76,10 +76,33 @@
     	                    enableEditing: false,
     	                    disableSelection: true,
     	                    showRowActionsColumn: false,
+
+// Trying to implement a print dialog/page
+                        plugins: [
+                            {
+                                ptype: 'rallygridprintpage',
+                                menuItems: [
+                                    {
+                                        text: 'Print...',
+                                        handler: function () {
+                                            Ext.create('Rally.ui.plugin.print.GridPrintPage', {
+                                                grid: this.down('rallygrid').getGrid(),
+                                            });
+                                        },
+                                        scope: this
+                                    }
+                                ],
+                                buttonConfig: {
+                                    iconCls: 'icon-export'
+                                }
+                            }
+                        ],
+// END Print
+
         	                columnCfgs: [
 								{
 									dataIndex: 'FormattedID',
-									text: 'ID'
+									text: 'Item ID'
 								},{
 									dataIndex: 'Project',
 									text: 'Sprint ID',
