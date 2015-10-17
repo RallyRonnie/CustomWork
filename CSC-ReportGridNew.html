@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Filtered Grid Example</title>
+    <title>Accepted Story / Defect Grid with Iteration dates</title>
 
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
 
@@ -22,9 +22,7 @@
 							text: 'Export',
 							listeners: {
 								click: function() {
-								// this == the button, as we are in the local scope
 									app.exportGrid(app.down('rallygrid'));
-// console.log(app.buildCsvExportUrl( app.down('rallygrid') ));
 								}
 							}
 						}, {
@@ -39,7 +37,6 @@
 								select: this._onSelect,
 								scope: this
 							}
-
 						}, {
 							xtype: 'datefield',
 							itemId: 'edatePicker',
@@ -51,12 +48,10 @@
 								select: this._onSelect,
 								scope: this
 							}
-
 						}]
                     });
                 },  // END launch
                 _getDateFilter: function() {
-// console.log("getting date filter");
 					var filter = Ext.create('Rally.data.QueryFilter', {
                         property: 'AcceptedDate',
                         operator: '>=',
@@ -115,14 +110,23 @@
 										return v;
 									}
 								},{
-									dataIndex: 'FormattedID',
+									dataIndex: 'Iteration',
 									text: 'End Date',
 									renderer: function(v,m,r){
-										if (r.get('Iteration') && r.get('Iteration').EndDate){
-											return  Rally.util.DateTime.formatWithDefault(Rally.util.DateTime.fromIsoString(r.get('Iteration').EndDate));
+										if (v && v.EndDate){
+											return Rally.util.DateTime.formatWithDefault(Rally.util.DateTime.fromIsoString(v.EndDate));
 										}
-										return '';
+										return v;
 									}
+//								},{
+//									dataIndex: 'FormattedID',
+//									text: 'End Date',
+//									renderer: function(v,m,r){
+//										if (r.get('Iteration') && r.get('Iteration').EndDate){
+//											return  Rally.util.DateTime.formatWithDefault(Rally.util.DateTime.fromIsoString(r.get('Iteration').EndDate));
+//										}
+//										return '';
+//									}
 								},{
 									dataIndex: 'AcceptedDate',
 									text: 'Date Accepted'
@@ -134,20 +138,17 @@
         	                context: this.getContext(),
             	            storeConfig: {
                 	            models: [ 'userstory', 'defect'],
+                	            pageSize: 200,
                 	            fetch: ['FormattedID','Name','AcceptedDate','Project','PlanEstimate','Iteration','StartDate','EndDate'],
                     	        filters: [this._getDateFilter()]
                         	}
                     	});
             		} // END else
-//            		this.exportGrid(this.down('rallygrid'));
                 },  // END _onSelect
 
     dateFormat : 'Y-m-d',
 
     exportGrid: function(grid) {
-//console.log("grid->");
-//console.log(grid);
-
         if (Ext.isIE) {
             this._ieToExcel(grid);
 
@@ -171,9 +172,6 @@
 
     _getFieldText: function(fieldData) {
         var text;
-//console.log("fieldDataType->");
-//console.log(fieldData);
-//console.log(typeof(fieldData));
         if (fieldData == null || fieldData == undefined) {
             text = '';
         } else if (fieldData._refObjectName && !fieldData.getMonth) {
@@ -182,10 +180,6 @@
             text = Ext.Date.format(fieldData, this.dateFormat);
 		} else if (typeof(fieldData) === "number" ) { 
 			text = '' + fieldData;
-		} else if (fieldData === "Sprint ID" ) { 
-			text = fieldData;
-//		} else if (typeof(fieldData) === "number" ) { 
-//			text = '' + fieldData;
 		} else if (!fieldData.match) { // not a string or object we recognize...blank it out 
 			text = ''; 
 		} else { 
@@ -218,13 +212,14 @@
             var entry       = record.getData();
             Ext.Array.each(cols, function(col, index) {
                 if (col.hidden != true) {
-if (col.text === 'Sprint ID') {
-var v;
-console.log("GOT RENDERER -> ", col);
-console.log(col.renderer(v,null,record));
-}
+
                     var fieldName   = col.dataIndex;
                     var text        = entry[fieldName];
+					if (col.text == 'Sprint ID' || col.text == 'Start Date' || col.text == 'End Date') {
+						var v = entry[col.dataIndex];
+						text = col.initialConfig.renderer(v,{},record);
+//						console.log("GOT RENDERER -> ", text);
+					}
                     data += that._getFieldTextAndEscape(text) + ',';
                 }
             });
