@@ -1,6 +1,6 @@
 CustomWork
 ==========
-This repository is used to house one-off customizations for customers. This provides an easy way to distribute and track the work.
+This repository is used to house one-off customizations for customers and prospects. This provides an easy way to distribute and track the work.
 
 ## License
 
