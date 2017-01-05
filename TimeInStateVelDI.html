@@ -26,31 +26,45 @@
 //
 		var app = this;
 		var appf;
-		var timeInField = "ScheduleState";
+		var timeInField = "c_KanbanState";
 		var iid;
 		var fromDate;
 		var stateField;
 		var timeInFieldStates = [
-			"Defined",
-			"In-Progress",
-			"Completed",
-			"Accepted"
+			"Queue",
+			"Doing",
+			"Reviewing",
+			"Verifying",
+			"Demoable",
+			"Accepted",
+			"Archived"
 		];
-
-//		var shirtSizeLUT = {
-//			0: "U",
-//			1: "X",
-//			3: "S",
-//			5: "M",
-//			8: "L"
-//		};
 
 		Rally.onReady(function () {
 			Ext.define("CustomApp", {
-				extend: "Rally.app.App",
-				componentCls: "app",
+				extend: 'Rally.app.TimeboxScopedApp',
+				componentCls: 'app',
+				scopeType: 'iteration',
+				comboboxConfig: {
+					fieldLabel: 'Select an Iteration:',
+					labelWidth: 100,
+					width: 300
+				},
+	onScopeChange: function() {
+		if (this.getContext().getTimeboxScope().getRecord() === null) {
+			alert("You must specify a valid Iteration/Sprint. Unscheduled is not supported.");
+		} else {
+			this._addExport();
+//			this._showMask('Updating');
+			this._launch();
+		}
+	},
 
-				launch: function() {
+				addContent: function() {
+
+					appf._launch();;
+				},
+				_addExport: function() {
 					appf = this;
 					if (!self.exportButton) {
 						self.exportButton = this.add({
@@ -63,59 +77,6 @@
 							visible: true
 						});
 					}
-					if (!self.fieldButton) {
-						self.fieldButton = this.add({
-							xtype: 'rallybutton',
-							text: 'Choose Field',
-							border: 1,
-							padding: 4,
-							margin: 5,
-							handler: this._onClickField,
-							visible: true
-						});
-					}
-					if (!self.optionsButton) {
-						appf = this;
-						self.optionsButton = this.add({
-							xtype: 'rallybutton',
-							text: 'Run Report',
-							border: 1,
-							padding: 4,
-							margin: 5,
-							handler: this._addMenu,
-							visible: true
-						});
-					}
-				},
-				_onClickField: function() {
-
-var fieldPicker = Ext.create('Ext.Container', {
-     items: [{
-         xtype: 'rallyfieldpicker',
-         autoExpand: true,
-         modelTypes: ['HierarchicalRequirement','Defect']
-     }],
- });
-this.add(fieldPicker);
-
-				},
-				_setField: function() {
-				},
-				_addMenu: function() {
-					var dateMenu = Ext.create('Ext.menu.DatePicker', {
-						scope: this,
-						handler: function(dp, date) {
-							app.fromDate = date;
-							appf._launch();
-						}
-					});
-
-					Ext.create('Ext.menu.Menu', {
-						items: [{
-							text: 'Choose Start Date',
-							menu: dateMenu
-						}]
-					}).showAt([215, 15]);
 				},
 				_launch: function () {
 					var self = this;
@@ -123,7 +84,8 @@ this.add(fieldPicker);
 					Ext.create("Rally.data.lookback.SnapshotStore", {
 						fetch: ["FormattedID", "_TypeHierarchy", "Name", "PlanEstimate", timeInField, "ScheduleState"],
 						hydrate: [timeInField],
-						filters: [{
+						filters: [
+						{
 							property: "_ProjectHierarchy",
 							value: {
 								"$in": [this.getContext().getProject().ObjectID]
@@ -134,15 +96,26 @@ this.add(fieldPicker);
 								"$in": ["HierarchicalRequirement", "Defect"]
 							}
 						}, 
-//						{
-//							property: "Iteration",
-//							value: app.iid
-//						},
 						{
-							property: "_ValidFrom",
-							value: { $gt: app.fromDate }
+							property: "Iteration",
+							value: {
+								"$in": [this.getContext().getTimeboxScope().getRecord().get("ObjectID")]
 							}
-						], // sort: { "_ValidFrom": -1 }
+						}
+//						,
+//						{
+//							property: "_ValidFrom",
+//							value: {
+//								"$in": [this.getContext().getTimeboxScope().getRecord().get("StartDate")]
+//							}
+//						}
+						],
+//						,
+//						{
+//							property: "_ValidTo",
+//							value: { $gt: app.fromDate }
+//							}
+//						], // sort: { "_ValidFrom": -1 }
 						sorters: [{
 							property: "_ValidTo",
 							direction: "ASC"
@@ -168,19 +141,23 @@ this.add(fieldPicker);
 									});
 
 									var currentStateOfStory = "";
-									var currentStateOfStorySnapshot = Ext.Array.filter(recordsByStory, function (record) {
-										return record.get("_ValidTo").indexOf("9999") !== -1;
-									})[0];
+//									var currentStateOfStorySnapshot = Ext.Array.filter(recordsByStory, function (record) {
+//										return record.get("_ValidTo").indexOf("9999") !== -1;
+//									})[0];
+console.log(recordsByStory.length);
+									var currentStateOfStorySnapshot = Ext.Array.push(recordsByStory[recordsByStory.length - 1]);
+console.log(currentStateOfStorySnapshot);
 									if (currentStateOfStorySnapshot) {
-										currentStateOfStory = currentStateOfStorySnapshot.get(timeInField);
-//										console.log("GOOD state - ", recordsByStory);
+										currentStateOfStory = currentStateOfStorySnapshot[0].get(timeInField);
+										console.log("GOOD state - ", recordsByStory);
 									} else {
-//											console.log("not good state - ", recordsByStory);
+											console.log("not good state - ", recordsByStory);
 									}
 									var formattedID = recordsByStory[0].get("FormattedID");
 									var cycleTimes = {
 										id: formattedID,
 										name: recordsByStory[0].get("Name"),
+										sprint: recordsByStory[0].get("Iteration"),
 //										planEstimate: shirtSizeLUT[Rally.util.Array.last(recordsByStory).get("PlanEstimate")],
 										planEstimate: Rally.util.Array.last(recordsByStory).get("PlanEstimate"),
 										currentStateOfStory: currentStateOfStory
@@ -209,12 +186,14 @@ this.add(fieldPicker);
 if (nextSnapshot) {
 cycleTimes.name = nextSnapshot.get("Name");
 }
-
 										var secondDate = new Date();
 
-										if (nextSnapshot && (new Date(nextSnapshot.get("_ValidTo"))).getFullYear() !== 9998)
+										if (nextSnapshot && (new Date(nextSnapshot.get("_ValidTo"))).getFullYear() !== 9998) {
 											secondDate = new Date(nextSnapshot.get("_ValidTo"));
-
+										} else {
+											secondDate = new Date(self.getContext().getTimeboxScope().getRecord().get("EndDate"));
+										}
+// console.log(secondDate, firstDate);
 										var cycleTime = Rally.util.DateTime.getDifference(secondDate, firstDate, "day");
 										cycleTimes[currentStatus] = cycleTime;
 

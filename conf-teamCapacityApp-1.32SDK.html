@@ -1,0 +1,69 @@
+   <html>
+        <head>
+           <title>Capacity Table</title>
+           <meta name="Name" content="Team Capacity Table" />
+           <meta name="Version" content="2014.2" />
+           <meta name="Vendor" content="Rally Software" />
+  <script type="text/javascript"
+          src="https://rally1.rallydev.com/apps/1.33/sdk.js?loginKey=188f71d417b22f2421f8795fed6778cb06f7cdf60f63d8895de38a7115ea9d0c|719c4f2ef49483b7c91b7bfbb4c3f52b|93cc4b25c702944bcca3ba1c143557121c276d91aef7412639b64f996c4a3ae7d449f4d82e43e0c4675d4fe3f40903b9|40,148,73,34,84,18,104,23,6,131,114,96,40,7,53,121">
+  </script>
+       <script type="text/javascript">
+// ====================================================
+// Set this prodID variable to your desired ProjectOID
+//   GibraltarPjtID 16566360492
+//      Track1PjtID 16947828139
+//      Track2PjtID 16947830766
+//      Track3PjtID 16947832271
+
+			var projID = '16947828139';
+//
+//=====================================================
+             var table = null;
+             var rallyDataSource;
+
+             function tableExample() {
+               rallyDataSource = new rally.sdk.data.RallyDataSource('__WORKSPACE_OID__',
+                                                                                    projID,
+                                                                                    false,
+                                                                                    false);
+              function itemQuery() {
+                 var queryObject = {
+                   key: 'theItems',
+                   type: 'UserIterationCapacity',
+                   fetch: 'User,TaskEstimates,Iteration,Capacity',
+                   order: 'User asc',
+                   query: new rally.sdk.util.Query('Project = /project/' + projID).and('Iteration.StartDate <= today').and('Iteration.EndDate >= today')
+                 };
+                 rallyDataSource.findAll(queryObject, populateTable);
+              }
+              function populateTable(results) {
+                  if (table) {
+                      table.destroy();
+                  }
+                 var tableDiv = document.getElementById('aDiv');
+                 var config = { 'columnKeys'    : ['User',  'TaskEstimates', 'Capacity'],
+                                'columnHeaders' : ['Team Member',  'Task Estimates', 'Capacity'],
+                                'columnWidths'  : ['200px',        '100px',      '100px']
+                               };
+                 table = new rally.sdk.ui.Table(config);
+                 table.addRows(results.theItems);
+                 for (i=0;i<results.theItems.length;i++) {
+// console.log(results.theItems[i].User);
+                 	table.setCell(i, 0, results.theItems[i].User._refObjectName);
+                    table.setCell(i, 1, results.theItems[i].TaskEstimates);
+                    table.setCell(i, 2, results.theItems[i].Capacity);
+                 }
+                 table.display(tableDiv);
+              };
+              itemQuery();
+             }
+             rally.addOnLoad(tableExample);
+			</script>
+
+</head>
+	<body>
+		<button onclick="tableExample()">Refresh</button>
+		<br></p>
+		<div id="aDiv" style="overflow-y: auto;"></div>
+	</body>
+</html>

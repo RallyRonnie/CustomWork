@@ -560,7 +560,7 @@
                     state = record.get("ScheduleState");
                     childChartData.push(this.addPoint(record.get("FormattedID"), color, pointSize, record.get("Name"), state, false, null, true, hasChildren, record.get("_ref")));
             
-                    grandChildChartData.push(this.addNullPoint("Chart does not support child stories or tasks", true));
+                    grandChildChartData.push(this.addNullPoint("Tasks not Supported", true));
                 },
             
                  addDataPointsForGrandChildCollection: function(records, grandChildChartData, childrenAreUserStories) {

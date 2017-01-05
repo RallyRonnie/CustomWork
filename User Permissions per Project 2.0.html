@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>User Permissions</title>
+        <meta name="Name" content="User Permissions" />
+        <meta name="Version" content="1.1" />
+        <meta name="Vendor" content="Rally Software" />
+        <meta name="Author" content="Joel Krooswyk, Colin OBrien" />
+
+    <script type="text/javascript" src="https://demo02.rallydev.com/apps/2.0p5/sdk-debug.js"></script>
+
+    <script type="text/javascript">
+    
+    // This app finds all defects created during a given iteration
+    
+        Rally.onReady(function() {
+            
+            window.console = window.console || { log: function () {}, dir: function () {} };
+            var Ext = window.Ext4 || window.Ext;
+
+            Ext.define('CustomApp', {
+                extend: 'Rally.app.App',
+                componentCls: 'app',
+            
+                launch: function() {
+                                    
+                    Ext.create('Rally.data.WsapiDataStore', {
+                        model: 'User',
+                        autoLoad: true,
+                        fetch: ['DisplayName', 'FirstName', 'LastName', 'Name', 'UserPermissions', 'Project'],
+                        filters: [
+                            {
+                                property: 'Disabled',
+                                operator: '=',
+                                value: 'false'
+                            }
+                        ],
+                        listeners: {
+                            load: this._onDataLoaded,
+                            scope: this
+                        },
+                        sorters: [
+                           {
+                                property: 'DisplayName',
+                                direction: 'ASC'
+                           }
+                        ]
+                    });
+                },
+                
+                _onDataLoaded: function(store, data) {
+
+                    var records = [];
+                    var OwnerName = "";
+                    var FirstName = "";
+                    var LastName = "";
+                    var Submitter = "";
+                    var creationdate = "";
+                    var TargetIteration = "";
+                    var i;
+
+                    var oidMap = {};
+                    Ext.Array.each([__PROJECT_OIDS_IN_SCOPE__], function (val) {
+                      oidMap[val] = 1;
+                    });
+
+                    Ext.Array.each(data, function(record) {
+                        OwnerName = record.get('DisplayName');
+                        FirstName = record.get('FirstName');
+                        LastName = record.get('LastName');
+                        var PermissionsArray = "";
+                        var SubAdmin = record.get('SubscriptionAdmin');
+                        
+                        if (SubAdmin == false) {
+                        
+                            i = 0;
+                            Ext.Array.each(record.get('UserPermissions'), function(permission, index) {
+
+                                if (i === 0) {
+
+                                    if (permission._type == "ProjectPermission") {
+                                        var poid = parseInt(Rally.util.Ref.getOidFromRef(permission.Project._ref) + "", 10);
+                                        if (oidMap[poid]) {
+                                            PermissionsArray = "- " + permission._refObjectName;
+                                            i = 1;
+                                        }
+                                    }
+
+                                } else {
+                                    
+                                    if (permission._type == "ProjectPermission") {
+                                        var poid = parseInt(Rally.util.Ref.getOidFromRef(permission.Project._ref) + "", 10);
+                                        if (oidMap[poid]) {
+                                            PermissionsArray = PermissionsArray + "<BR>- " + permission._refObjectName;
+                                            i = 1;
+                                        }
+                                    }
+                                }
+
+                            });
+
+                            if (PermissionsArray == "") {
+                                PermissionsArray = "Workspace Admin";
+                            }
+
+                            records.push({
+                                    Permissions: PermissionsArray,
+                                    Owner: OwnerName,
+                                    FirstName: FirstName,
+                                    LastName: LastName
+                            });
+                        }
+                    });
+            
+                    mystore = Ext.create('Rally.data.custom.Store', {
+                        data: records,
+                        pageSize: 99
+                    });
+
+                    this._Grid = Ext.create('Rally.ui.grid.Grid', {
+                        xtype: 'rallygrid',
+                        store: mystore,
+                        title: 'User Project Permissions',
+                        enableEditing: true,
+                        columnCfgs: [
+                            {
+                                text: 'Display Name', dataIndex: 'Owner', flex: 1
+                            },
+                            {
+                                text: 'First Name', dataIndex: 'FirstName', flex: 1
+                            },
+                            {
+                                text: 'Last Name', dataIndex: 'LastName', flex: 1
+                            },
+                            {
+                                text: 'Project Permissions', dataIndex: 'Permissions', flex: 2
+                            }
+                        ]
+                    });
+                    this.add(this._Grid);
+                }
+            });
+
+            Rally.launchApp('CustomApp', {
+                name: 'User Project Permissions'
+            });
+        });
+    </script>
+
+    <style type="text/css">
+    </style>
+</head>
+<body></body>
+</html>

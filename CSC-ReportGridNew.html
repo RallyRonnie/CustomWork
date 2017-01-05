@@ -141,6 +141,27 @@
 										}
 										return v;
 									}
+								},{
+									dataIndex: 'Release',
+									text: 'Release'
+								},{
+									dataIndex: 'Release',
+									text: 'Start Date',
+									renderer: function(v,m,r){
+										if (v && v.ReleaseStartDate){
+											return Rally.util.DateTime.formatWithDefault(Rally.util.DateTime.fromIsoString(v.ReleaseStartDate));
+										}
+										return v;
+									}
+								},{
+									dataIndex: 'Release',
+									text: 'End Date',
+									renderer: function(v,m,r){
+										if (v && v.ReleaseDate){
+											return Rally.util.DateTime.formatWithDefault(Rally.util.DateTime.fromIsoString(v.ReleaseDate));
+										}
+										return v;
+									}
 //								},{
 //									dataIndex: 'FormattedID',
 //									text: 'End Date',
@@ -162,7 +183,7 @@
             	            storeConfig: {
                 	            models: [ 'userstory', 'defect'],
                 	            pageSize: 200,
-                	            fetch: ['FormattedID','Name','AcceptedDate','Project','PlanEstimate','Iteration','StartDate','EndDate'],
+                	            fetch: ['FormattedID','Name','AcceptedDate','Project','PlanEstimate','Iteration', 'Release', 'StartDate','EndDate', 'ReleaseStartDate', 'ReleaseDate'],
                     	        filters: [this._getDateFilter()]
                         	}
                     	});
@@ -241,7 +262,7 @@
 					if (col.text == 'Sprint ID' || col.text == 'Start Date' || col.text == 'End Date') {
 						var v = entry[col.dataIndex];
 						text = col.initialConfig.renderer(v,{},record);
-//						console.log("GOT RENDERER -> ", text);
+						console.log("GOT RENDERER -> ", text);
 					}
                     data += that._getFieldTextAndEscape(text) + ',';
                 }

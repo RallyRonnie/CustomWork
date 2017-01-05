@@ -1,0 +1,39 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<head>
+
+<meta name="Name" content="App Example: Confluence Standard Report" />
+  <meta name="Version" content="2014.01" />
+  <meta name="BMC Software" content="BMC Software" />
+  <script type="text/javascript"
+          src="https://rally1.rallydev.com/apps/1.33/sdk.js?loginKey=188f71d417b22f2421f8795fed6778cb06f7cdf60f63d8895de38a7115ea9d0c|719c4f2ef49483b7c91b7bfbb4c3f52b|93cc4b25c702944bcca3ba1c143557121c276d91aef7412639b64f996c4a3ae7d449f4d82e43e0c4675d4fe3f40903b9|40,148,73,34,84,18,104,23,6,131,114,96,40,7,53,121">
+  </script>
+  <script type="text/javascript">
+      function onLoad() {
+//          rally.sdk.ui.AppHeader.destroy();
+ 
+          var ESMworkspaceID = 462253075;
+          var GibraltarPjtID = "/project/16566360492";
+          var Track1PjtID = ["/project/16947828139"];
+          var Track2PjtID = "project/16947830766";
+          var Track3PjtID = "project/16947832271";
+   
+   var config = {
+           report: rally.sdk.ui.StandardReport.IterationBurndown,
+           width : 600,
+           height: 250,
+//           projects: [16947828139]
+			iterations: []
+         };
+       var report = new rally.sdk.ui.StandardReport(config);
+       report.display("aDiv");   
+ 
+      }
+      rally.addOnLoad(onLoad);
+  </script>
+<body> 
+<div id="aDiv" style="float:left; width: 600px; margin-left:20px"></div>
+ 
+<br>
+</body>
+</html>

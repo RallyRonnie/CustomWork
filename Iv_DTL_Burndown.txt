@@ -1,0 +1,64 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<!-- Copyright (c) 2011 Rally Software Development Corp. All rights reserved -->
+<html>
+<head>
+<title>DTL Teams Iteration 1 Burndown</title>
+<meta name="Rally Burndown"    content="App Example: LoginKey RallyDataSource" />
+<meta name="Version" content="2014.01" />
+<meta name="Vendor"  content="Rally Software" />
+<script type="text/javascript" src="https://rally1.rallydev.com/apps/1.33/sdk.js?loginKey=38d140cc235467245bf272237820e3eca3defa18047d02e208c6083a374a1990|053fc15d42381507cd24b9db47bad910|3430cc910c655e9825cf221e356fe05d164606283aa09eac34df4352ffca850c814342b8e9022f7e1141029cecf4f94c|145,129,52,19,152,80,115,87,0,56,19,51,16,21,64,128"></script>
+<script type="text/javascript">
+// DTL Iteration 1: 19243531501
+// DTL Team 1 Iteration 1: 19289181986
+// DTL Team 2 Iteration 1: 19289182251
+// DTL Team 3 Iteration 1: 19289182528
+// DTL Team 5 Iteration 1: 19289183242
+// DTL Team 6 Iteration 1: 19289183775
+function onLoad() {
+rally.sdk.ui.AppHeader.destroy();
+var reportConfig1 = {
+report: rally.sdk.ui.StandardReport.IterationBurndown,
+width: 500,
+iterations: [19289182528]
+};
+var report1 = new rally.sdk.ui.StandardReport(reportConfig1);
+report1.display("reportDiv1");
+
+var reportConfig2 = {
+report: rally.sdk.ui.StandardReport.IterationBurndown,
+width: 500,
+iterations: [19289182251]
+};
+var report2 = new rally.sdk.ui.StandardReport(reportConfig2);
+report2.display("reportDiv2");
+
+var reportConfig3 = {
+report: rally.sdk.ui.StandardReport.IterationBurndown,
+width: 500,
+iterations: [19289182528]
+};
+var report3 = new rally.sdk.ui.StandardReport(reportConfig3);
+report3.display("reportDiv3");
+
+var reportConfig5 = {
+report: rally.sdk.ui.StandardReport.IterationBurndown,
+width: 500,
+iterations: [19289183242]
+};
+var report5 = new rally.sdk.ui.StandardReport(reportConfig5);
+report5.display("reportDiv5");
+}
+rally.addOnLoad(onLoad);
+</script>
+<div align="center"><H1>DTL Iteration 1 Burndown Charts</H1></div>
+<table>
+<tr>
+<td><h2 align="center">Team 1</h2><br><div id="reportDiv1" style="width: 500px; height: 400px"></div></td>
+<td><h2 align="center">Team 2</h2><br><div id="reportDiv2" style="width: 500px; height: 400px"></div></td>
+</tr><tr>
+<td><h2 align="center">Team 3</h2><br><div id="reportDiv3" style="width: 500px; height: 400px"></div></td>
+<td><h2 align="center">Team 5</h2><br><div id="reportDiv5" style="width: 500px; height: 400px"></div></td>
+</tr>
+</table>
+</body>
+</html>

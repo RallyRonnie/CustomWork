@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Defect Time in State Table</title>
+
+    <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
+
+    <script type="text/javascript">
+		var app = this;
+		var appf;
+		var timeInField = "State";
+		var iid;
+		var fromDate;
+		var stateField;
+		var timeInFieldStates = [
+			"Open",
+			"Verifying",
+			"Fixed"
+		];
+
+		Rally.onReady(function () {
+			Ext.define('Rally.example.CustomStoreGrid', {
+				extend: 'Rally.app.App',
+				componentCls: 'app',
+
+				launch: function () {
+					var self = this;
+					Ext.getBody().mask('Working...');
+					Ext.create("Rally.data.lookback.SnapshotStore", {
+							fetch: ["FormattedID", "_TypeHierarchy", "Name", "CreationDate", "PlanEstimate", timeInField, "Project", "Owner", "ScheduleState", "Priority", "Severity", "Environment"],
+							hydrate: [timeInField, "Priority", "Severity", "Project", "ScheduleState"],
+							filters: [{
+								property: "_ProjectHierarchy",
+								value: {
+									"$in": [this.getContext()
+										.getProject()
+										.ObjectID
+									]
+								}
+							}, {
+								property: "_TypeHierarchy",
+								value: {
+									"$in": ["Defect"]
+								}
+							}],
+							sorters: [{
+								property: "_ValidTo",
+								direction: "ASC"
+							}]
+						}).load({
+							params: {
+								compress: false,
+								removeUnauthorizedSnapshots: true
+							},
+							callback: function (records, operation, success) {
+								var aggregateCycleTimes = [];
+
+								var allObjectIDs = {};
+								Ext.Array.each(records, function (record) {
+									allObjectIDs[record.get("ObjectID")] = record.get("ObjectID");
+								});
+
+								for (var storyIndex = 0; storyIndex < Object.keys(allObjectIDs).length; storyIndex++) {
+									(function () {
+										var currentObjectID = parseInt(Object.keys(allObjectIDs)[storyIndex], 10);
+										var recordsByStory = Ext.Array.filter(records, function (record) {
+											return record.get("ObjectID") === currentObjectID;
+										});
+
+										var currentStateOfStory = "";
+										var currentStateOfStorySnapshot = Ext.Array.push(recordsByStory[recordsByStory.length - 1]);
+										if (currentStateOfStorySnapshot) {
+											currentStateOfStory = currentStateOfStorySnapshot[0].get(timeInField);
+											//		                    console.log("GOOD state - ", recordsByStory);
+											//		                  } else {
+											//		                    console.log("not good state - ", recordsByStory);
+										}
+										var formattedID = recordsByStory[0].get("FormattedID");
+										var priority = recordsByStory[0].get("Priority");
+										var severity = recordsByStory[0].get("Severity");
+										var project = recordsByStory[0].get("Project");
+										var owner = recordsByStory[0].get("Owner");
+										var sstate = recordsByStory[0].get("ScheduleState");
+										var CDate = recordsByStory[0].get("CreationDate").split('T')[0];
+										var cycleTimes = {
+											FormattedID: formattedID,
+											Name: recordsByStory[0].get("Name"),
+											planEstimate: 0,
+											Priority: priority,
+											Severity: severity,
+											Project: project.Name,
+											Owner: owner,
+											cDate: CDate,
+											ScheduleState: sstate,
+											currentStateOfStory: currentStateOfStory
+										};
+
+										var allStatusesAreNull = true;
+
+										for (var i = 0; i < timeInFieldStates.length; i++) {
+											var currentStatus = timeInFieldStates[i];
+
+											var currentSnapshot = Ext.Array.filter(recordsByStory, function (record) {
+												return record.get(timeInField) === currentStatus;
+											})[0];
+
+											if (!currentSnapshot) {
+												cycleTimes[currentStatus] = null;
+												continue;
+											}
+
+											var firstDate = new Date(currentSnapshot.get("_ValidFrom"));
+											filteredArray = Ext.Array.filter(recordsByStory, function (record) {
+												return record.get(timeInField) === currentStatus;
+											});
+											var nextSnapshot = filteredArray[filteredArray.length - 1];
+
+											// Added to get newest Name for Display
+											if (nextSnapshot) {
+												cycleTimes.name = nextSnapshot.get("Name");
+											}
+											var secondDate = new Date();
+
+											if (nextSnapshot && (new Date(nextSnapshot.get("_ValidTo")))
+												.getFullYear() !== 9998) {
+												secondDate = new Date(nextSnapshot.get("_ValidTo"));
+											} else {
+												//	secondDate = new Date(self.getContext().getTimeboxScope().getRecord().get("EndDate"));
+												var newDate = new Date();
+												var month = newDate.getMonth() + 1;
+												var day = newDate.getDate();
+												var year = newDate.getFullYear();
+												secondDate = new Date(year, month, day - 1);
+											}
+											var cycleTime = Rally.util.DateTime.getDifference(secondDate, firstDate, "day");
+											cycleTimes[currentStatus] = cycleTime;
+
+											if (cycleTime !== null)
+												allStatusesAreNull = false;
+										}
+
+										if (!allStatusesAreNull)
+											aggregateCycleTimes.push(cycleTimes);
+									})();
+								}
+								var myStore = Ext.create("Rally.data.custom.Store", {
+									data: aggregateCycleTimes,
+									//								pageSize: 200
+								});
+
+
+								Ext.getBody().unmask();
+								var columnConfig = [{
+//									xtype: 'templatecolumn',
+//									tpl: Ext.create('Rally.ui.renderer.template.FormattedIDTemplate'),
+									text: 'ID',
+									dataIndex: 'FormattedID'
+								}, {
+									text: 'Name',
+									dataIndex: 'Name',
+									flex: 1
+								}, {
+									text: "Priority",
+									dataIndex: "Priority"
+								}, {
+									text: "Severity",
+									dataIndex: "Severity"
+								}, {
+									text: "ScheduleState",
+									dataIndex: "ScheduleState"
+								}, {
+									text: "Team",
+									dataIndex: "Project"
+								}, {
+									text: "Creation Date",
+									dataIndex: "cDate"
+								}, {
+									text: "Current State",
+									dataIndex: "currentStateOfStory"
+								}];
+
+								for (var i = 0; i < timeInFieldStates.length; i++) {
+									var columnConfigElement = {};
+									columnConfigElement["text"] = timeInFieldStates[i];
+									columnConfigElement["dataIndex"] = timeInFieldStates[i];
+									columnConfig.push(columnConfigElement);
+								}
+								self.grid = self.add({
+									xtype: "rallygrid",
+									showPagingToolbar: true,
+									//		        showRowActionsColumn: true,
+									editable: false,
+									enableEditing: false,
+									// simpleSelect: true,
+									styleHtmlContent: true,
+									store: myStore,
+									columnCfgs: columnConfig
+								});
+							}
+						});
+					}
+				});
+			});
+		Rally.launchApp('Rally.example.CustomStoreGrid', {
+			name: 'Defect Time in State Table'
+		});
+	</script>
+
+    <style type="text/css">
+        
+    </style>
+</head>
+<body></body>
+</html>

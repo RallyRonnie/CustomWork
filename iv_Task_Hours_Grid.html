@@ -1,0 +1,350 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Task Actuals History</title>
+
+    <script type="text/javascript" src="/apps/2.0rc2/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function () {
+                Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+
+    items: [
+        {xtype:'container',itemId:'date_selector_box'}, 
+        {xtype:'container',itemId:'save_button_box'},
+		{xtype:'container',itemId: 'controlsContainer',columnWidth: 1},
+        {xtype:'container',itemId:'gridContainer', padding: 10, margin: 10 }
+    ],
+    _currentUser: null,
+    _currentUserName: null,
+    _snapshotStore: null,
+    _storyRecords: [],
+    _storyGrid: null,
+
+    launch: function() {
+
+        var me = this;
+
+        // Get currently logged-in user
+        me._currentUser = this.getContext().getUser();
+        me._currentUserName = me._currentUser._refObjectName;
+		me._userStore = Ext.create('Rally.data.WsapiDataStore', {
+			model: 'User',
+			fetch: ['DisplayName','ObjectID'],
+			autoLoad: true,
+			limit: Infinity,
+			filters: [
+				{ property: 'disabled', value: false }
+			],
+			listeners: {
+				load: function(ustore, udata) {
+					me._addDateSelectors();
+				}
+			}
+		}); 
+
+        // Query for story snapshot 0's
+        
+
+    },
+    _addDateSelectors: function() {
+        var me = this;
+        var msecPerDay = 24 * 60 * 60 * 1000;
+		var today = new Date();
+		var startd = new Date(today.getTime() - (msecPerDay * 14));
+
+        var start_selector = this.down('#date_selector_box').add({
+            xtype:'rallydatefield',
+            itemId:'start_date_selector',
+            fieldLabel: 'Include weeks from:',
+            value: startd,
+            listeners: {
+                scope: this,
+                change: function(dp, new_value) {
+                        me._mask("Gathering data...");
+                        me._getStorySnapshots();
+                }
+            }
+        });
+
+        var end_selector = this.down('#date_selector_box').add({
+            xtype:'rallydatefield',
+            itemId:'end_date_selector',
+            fieldLabel: 'to:',
+            value: today,
+            listeners: {
+                scope: this,
+                change: function(dp, new_value) {
+                    var week_start = this._getBeginningOfWeek(new_value);
+                        me._mask("Gathering data...",me);
+                        me._getStorySnapshots();
+                }
+            }
+        });
+        
+        var exportButton = this.down('#controlsContainer').add({
+			xtype: 'rallybutton',
+			text: 'Export to Excel',
+			border: 1,
+			handler: function() {
+				console.log("in export");
+				me._onClickExport();
+			},
+			visible: true
+		});
+		me._getStorySnapshots();
+    },
+
+    _getStorySnapshots: function() {
+
+        var me = this;
+
+        var currentUserOID = me._currentUser.ObjectID;
+        var currentProjectOID = parseInt(me.getContext().getProjectRef().match(/\d+/), 10);
+
+        var start_selector = this.down('#start_date_selector');
+        var end_selector = this.down('#end_date_selector');
+        var start = start_selector.getValue();
+        var end = end_selector.getValue();
+
+        this._snapshotStore = Ext.create('Rally.data.lookback.SnapshotStore', {
+            autoLoad : true,
+            limit: Infinity,
+            listeners: {
+                load: this._processSnapShotData,
+                scope : this
+            },
+            fetch: ['ObjectID','Name','_User','FormattedID','ToDo','State','Actuals','TimeSpent','_ValidFrom', '_ValidTo'],
+            hydrate: ['FormattedID','State'],
+            context: {
+                workspace: me.getContext().getWorkspaceRef(),
+                project: me.getContext().getProjectRef(),
+                projectScopeUp: false,
+                projectScopeDown: true
+            },
+            filters: [
+                {
+                    property: '_TypeHierarchy',
+                    operator: 'in',
+                    value: ['Task']
+                },
+                {
+                    property: '_ProjectHierarchy',
+                    value: currentProjectOID
+                },
+                {
+                    property: 'Actuals',
+                    value: { $gt: 0 }
+                },
+                {
+                    property: '_ValidFrom',
+                    value: { $gt: start }
+                },
+                {
+                    property: '_ValidTo',
+                    value: { $lt: end }
+                }
+            ]
+        });
+    },
+
+    _processSnapShotData : function(store, data, success) {
+
+        var me = this;
+        var records = [];
+        var uName = '';
+// console.log(data);
+        Ext.Array.each(data, function(record) {
+			var urecord = me._userStore.findRecord('ObjectID', record.get('_User'));
+			if (urecord) {
+//			console.log(urecord.get('DisplayName'));
+				if (urecord.get('DisplayName') !== '') {
+					uName = urecord.get('DisplayName');
+				} else {
+					uName = 'No Display Name';
+					}
+			} else {
+					uName = 'User Not Found';
+			}
+            var updateDateTime = me._nicerDateString(record.get('_ValidFrom'));
+            var newRecord = {
+                "_ref"          : "/task/" + record.get('ObjectID'),
+                "FormattedID"   : record.get('FormattedID'),
+                "ObjectID"      : record.get('ObjectID'),
+                "Name"          : record.get('Name'),
+                "TimeSpent" 	: record.get('TimeSpent'),
+                "ToDo" 			: record.get('ToDo'),
+                "State" 			: record.get('State'),
+                "Actuals" 		: record.get('Actuals'),
+                "PToDo" 		: record.get('_PreviousValues.ToDo'),
+                "UpdateDate"	: updateDateTime,
+                "User"			: uName
+            };
+            records.push(newRecord);
+        });
+
+        me._storyRecords = records;
+        me._makeGrid();
+    },
+
+    _sortArrays: function(arr, sortArr) {
+        var result = [];
+        for(var i=0; i < arr.length; i++) {
+            result[i] = arr[sortArr[i]];
+        }
+        return result;
+    },
+
+    _stringArrayToIntArray: function(stringArray) {
+        var result = [];
+        Ext.Array.each(stringArray, function(thisString) {
+            result.push(parseInt(thisString, 10));
+        });
+        return result;
+    },
+
+    _makeGrid : function() {
+
+        var me = this;
+
+        if (me._storyGrid) {
+            me._storyGrid.destroy();
+        }
+
+
+        var gridStore = Ext.create('Rally.data.custom.Store', {
+            data: me._storyRecords,
+            pageSize: 200,
+            remoteSort: false
+        });
+
+        me._storyGrid = Ext.create('Rally.ui.grid.Grid', {
+            itemId: 'storyGrid',
+            id: 'storyGrid',
+            store: gridStore,
+            columnCfgs: [
+                {
+                    text: 'Formatted ID', dataIndex: 'FormattedID', xtype: 'templatecolumn',
+                    tpl: Ext.create('Rally.ui.renderer.template.FormattedIDTemplate')
+                },
+                {
+                    text: 'Name', dataIndex: 'Name', flex: 1
+                },
+                {   text: 'State', dataIndex: 'State'
+                },
+                {   text: 'ToDo', dataIndex: 'ToDo'
+                },
+                {   text: 'Actuals', dataIndex: 'Actuals'
+                },
+                {   text: 'Update Date', dataIndex: 'UpdateDate'
+                },
+                {
+                    text: 'User', dataIndex: 'User'
+                }
+            ]
+        });
+
+        me.down('#gridContainer').add(me._storyGrid);
+        me._storyGrid.reconfigure(gridStore);
+        me._unmask();
+
+    },
+    _mask: function(text) {
+        var me = this;
+        setTimeout(function(){
+            me.setLoading(text);
+        },10);
+    },
+    _unmask: function() {
+        this.setLoading(false);
+    },
+    _getBeginningOfWeek: function(js_date){
+        var start_of_week_here = Ext.Date.add(js_date, Ext.Date.DAY, -1 * js_date.getDay());
+        return start_of_week_here;
+    },
+
+    _nicerDateString: function(datestring) {
+
+        return datestring.replace(/T/," ").replace(/Z/, " UTC");
+
+    },
+
+    _noArtifactsNotify: function() {
+
+        if (this._storyGrid) {
+            this._storyGrid.destroy();
+        }
+
+        this._storyGrid = this.down('#gridContainer').add({
+            xtype: 'container',
+            html: "No Tasks found."
+        });
+    },
+	_onClickExport: function () {
+		console.log("in export");
+		if ( /*@cc_on!@*/ 0) { //Exporting to Excel not supported in IE
+			Ext.Msg.alert('Error', 'Exporting to CSV is not supported in Internet Explorer. Please switch to a different browser and try again.');
+		} else if (document.getElementById('storyGrid')) {
+			Ext.getBody().mask('Exporting Items...');
+				setTimeout(function () {
+				var template = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-' +
+								'microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head>' +
+								'<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>' +
+								'{worksheet}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>' +
+								'</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table>{table}' +
+								'</table></body></html>';
+
+				var base64 = function (s) {
+					return window.btoa(unescape(encodeURIComponent(s)));
+				};
+				var format = function (s, c) {
+					return s.replace(/{(\w+)}/g, function (m, p) {
+						return c[p];
+					})
+				};
+				var table = document.getElementById('storyGrid');
+				var excel_data = '<tr>';
+				Ext.Array.each(table.innerHTML.match(/<span .*?x-column-header-text.*?>.*?<\/span>/gm), function (column_header_span) {
+					excel_data += (column_header_span.replace(/span/g, 'td'));
+				});
+				excel_data += '</tr>';
+				Ext.Array.each(table.innerHTML.match(/<tr class="x-grid-row.*?<\/tr>/gm), function (line) {
+					excel_data += line.replace(/[^\011\012\015\040-\177]/g, '>>');
+				});
+
+				var ctx = {
+					worksheet: name || 'Worksheet',
+					table: excel_data
+				};
+				window.location.href = 'data:application/vnd.ms-excel;base64,' + base64(format(template, ctx));
+				Ext.getBody().unmask();
+			}, 500);
+		} else {
+			Ext.Msg.alert('Export Warning','You must select a date and run the report before you can export');
+		}
+	}
+
+
+});
+
+            Rally.launchApp('CustomApp', {
+                name:"Task Actuals",
+	            parentRepos:""
+            });
+
+        });
+    </script>
+
+
+    <style type="text/css">
+        .app {
+     /* Add app styles here */
+}
+
+    </style>
+</head>
+<body></body>
+</html>

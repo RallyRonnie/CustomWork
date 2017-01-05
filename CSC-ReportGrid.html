@@ -2,7 +2,7 @@
 <html>
 <!-- Refer to lines 16, 27, 37, 48 for customization details -->
 <head>
-    <title>Multi-type Grid</title>
+    <title>delivery Grid</title>
 
     <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
 
@@ -11,38 +11,13 @@
             Ext.define('Rally.example.MultiArtifactGrid', {
                 extend: 'Rally.app.App',
                 componentCls: 'app',
-            
                 launch: function() {
-// Edit the following userids to match the owners you wish to see
-					var filter = Ext.create('Rally.data.QueryFilter', {
-						property: 'Owner',
-						operator: '=',
-						value: 'paul@acme.com'
-					});
-					filter = filter.or({
-						property: 'Owner',
-						operator: '=',
-						value: 'tom@acme.com'  
-					});
-// LIST OF OWNERS - COPY/PASTE the following 5 lines and edit the owner
-					filter = filter.or({
-						property: 'Owner',
-						operator: '=',
-						value: 'jackie@acme.com'
-					});
-					filter = filter.and({
-						property: 'ScheduleState',
-						operator: '<',
-						value: 'Complete'
-					});
-					filter = filter.or({
-						property: 'State',
-						operator: '<',
-						value: 'Validate'
-					});
-					filter.toString();
-
-                    this.add({
+var filters = [];
+var timeboxScope = this.getContext().getTimeboxScope();
+if(timeboxScope) {
+    filters.push(timeboxScope.getQueryFilter());
+}
+                    this.grid = this.add ({
                         xtype: 'rallygrid',
 // EDIT THE FOLLOWING LIST TO SET THE COLUMNS YOU WISH TO DISPLAY
                         columnCfgs: [
@@ -50,17 +25,27 @@
                             'Name',
                             'State',
                             'ScheduleState',
-                            'Owner',
-                            'Parent'
+                            'PlanEstimate',
+                            'Iteration'
                         ],
                         context: this.getContext(),
                         storeConfig: {
 // EDIT THE FOLLOWING LIST TO SET THE RECORD TYPES YOU WISH TO DISPLAY
-                            models: ['PortfolioItem/Goal', 'PortfolioItem/Feature', 'userstory'],
-							filters: [filter]
+                            models: [ 'userstory', 'defect'],
+							filters: filters
                         }
                     });
-                }
+console.log("adding grid");
+                },
+                onTimeboxScopeChange: function(newTimeboxScope) {
+					this.callParent(arguments);
+console.log("refresh - ", newTimeboxScope.getQueryFilter());
+					this.grid.refresh({
+						storeConfig: {
+							filters: this.getContext().getTimeboxScope().getQueryFilter()
+						}
+					});
+				}
             });
             
 

@@ -1,0 +1,41 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html>
+<head>
+<title>Story List</title>
+<meta name="Name" content="Story List" />
+<meta name="Version" content="2015.1" />
+<meta name="Vendor" content="Rally Software" />
+<script type="text/javascript"
+        src="https://rally1.rallydev.com/apps/1.31/sdk.js?loginKey=d35ed3b82133b50f56649555e09507c7c8c46a908e137da91695a69122ca3c1e|2286683ef35b08d88186337570695fd1|cd1e9b58978fbe48d0371188bf97019ce701de09bf2dd7c2aba3432acd7bd8544676c331b18ee19fa437eb7243a0b29b|6,2,118,149,64,151,99,18,52,80,83,55,116,117,112,32">
+</script>
+<script type="text/javascript">
+    function onLoad() {
+        var rallyDataSource = new rally.sdk.data.RallyDataSource(
+            '13883198748',  // YOUR WORKSPACE OID
+            '13883198838',  // YOUR PROJECT OID
+            'false',
+            'true');
+        var config = {
+        type: "hierarchicalrequirement",
+        columnKeys:["FormattedIDLink", "Name", "ScheduleState", "Project.Name", "Description"],
+		columnHeaders: ["Formatted ID", "Name", "Schedule State", "Project", "Description"],
+		columnWidths : ['80px', '300px', '80px', '100px', '400px'],
+// EXAMPLE FILTER QUERY        query: '(ScheduleState = "Defined")',
+        fetch: "Name,FormattedID,ScheduleState,Project,Description"
+        };
+        var table = new rally.sdk.ui.Table(config, rallyDataSource);
+        table.addEventListener(table.getValidEvents().onDataRetrieved, function(t, args) {
+         rally.forEach(args.items, function(item) {
+          //Create a link component
+           item.FormattedIDLink = new rally.sdk.ui.basic.Link({item: item});
+           });
+       });
+        table.display("tableDiv");
+    }
+    rally.addOnLoad(onLoad);
+</script>
+</head>
+<body>
+<div id="tableDiv" style="float:left;width:90%"></div>
+</body>
+</html>

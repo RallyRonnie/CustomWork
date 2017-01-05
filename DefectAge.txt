@@ -26,104 +26,49 @@
 //
 		var app = this;
 		var appf;
-		var timeInField = "ScheduleState";
+		var timeInField = "State";
 		var iid;
 		var fromDate;
 		var stateField;
 		var timeInFieldStates = [
-			"Defined",
-			"In-Progress",
-			"Completed",
-			"Accepted"
+			"Open",
+			"Verifying",
+			"Fixed"
 		];
 
-//		var shirtSizeLUT = {
-//			0: "U",
-//			1: "X",
-//			3: "S",
-//			5: "M",
-//			8: "L"
-//		};
-
 		Rally.onReady(function () {
-			Ext.define("CustomApp", {
-				extend: "Rally.app.App",
-				componentCls: "app",
-
+			Ext.define("DefectAge", {
+                extend: 'Rally.app.App',
+//				extend: 'Rally.app.TimeboxScopedApp',
+				componentCls: 'app',
+//				scopeType: 'iteration',
+//				comboboxConfig: {
+//					fieldLabel: 'Select an Iteration:',
+//					labelWidth: 100,
+//					width: 300
+//				},
+//	onScopeChange: function() {
+//		if (this.getContext().getTimeboxScope().getRecord() === null) {
+//			alert("You must specify a valid Iteration/Sprint. Unscheduled is not supported.");
+//		} else {
+//			this._launch();
+//		}
+//	},
 				launch: function() {
-					appf = this;
-					if (!self.exportButton) {
-						self.exportButton = this.add({
-							xtype: 'rallybutton',
-							text: 'Export to Excel',
-							border: 1,
-							padding: 4,
-							margin: 5,
-							handler: this._onClickExport,
-							visible: true
-						});
-					}
-					if (!self.fieldButton) {
-						self.fieldButton = this.add({
-							xtype: 'rallybutton',
-							text: 'Choose Field',
-							border: 1,
-							padding: 4,
-							margin: 5,
-							handler: this._onClickField,
-							visible: true
-						});
-					}
-					if (!self.optionsButton) {
-						appf = this;
-						self.optionsButton = this.add({
-							xtype: 'rallybutton',
-							text: 'Run Report',
-							border: 1,
-							padding: 4,
-							margin: 5,
-							handler: this._addMenu,
-							visible: true
-						});
-					}
+					this._launch();
 				},
-				_onClickField: function() {
+				addContent: function() {
 
-var fieldPicker = Ext.create('Ext.Container', {
-     items: [{
-         xtype: 'rallyfieldpicker',
-         autoExpand: true,
-         modelTypes: ['HierarchicalRequirement','Defect']
-     }],
- });
-this.add(fieldPicker);
-
-				},
-				_setField: function() {
-				},
-				_addMenu: function() {
-					var dateMenu = Ext.create('Ext.menu.DatePicker', {
-						scope: this,
-						handler: function(dp, date) {
-							app.fromDate = date;
-							appf._launch();
-						}
-					});
-
-					Ext.create('Ext.menu.Menu', {
-						items: [{
-							text: 'Choose Start Date',
-							menu: dateMenu
-						}]
-					}).showAt([215, 15]);
+					appf._launch();;
 				},
 				_launch: function () {
 					var self = this;
 					Ext.getBody().mask('Working...');
 					Ext.create("Rally.data.lookback.SnapshotStore", {
-						fetch: ["FormattedID", "_TypeHierarchy", "Name", "PlanEstimate", timeInField, "ScheduleState"],
+						fetch: ["FormattedID", "_TypeHierarchy", "Name", "PlanEstimate", timeInField, "ScheduleState", "Priority","Severity","Environment"],
 						hydrate: [timeInField],
-						filters: [{
+						filters: [
+						{
 							property: "_ProjectHierarchy",
 							value: {
 								"$in": [this.getContext().getProject().ObjectID]
@@ -131,18 +76,29 @@ this.add(fieldPicker);
 						}, {
 							property: "_TypeHierarchy",
 							value: {
-								"$in": ["HierarchicalRequirement", "Defect"]
+								"$in": ["Defect"]
 							}
-						}, 
+						} //, 
 //						{
 //							property: "Iteration",
-//							value: app.iid
-//						},
-						{
-							property: "_ValidFrom",
-							value: { $gt: app.fromDate }
-							}
-						], // sort: { "_ValidFrom": -1 }
+//							value: {
+//								"$in": [this.getContext().getTimeboxScope().getRecord().get("ObjectID")]
+//							}
+//						}
+//						,
+//						{
+//							property: "_ValidFrom",
+//							value: {
+//								"$in": [this.getContext().getTimeboxScope().getRecord().get("StartDate")]
+//							}
+//						}
+						],
+//						,
+//						{
+//							property: "_ValidTo",
+//							value: { $gt: app.fromDate }
+//							}
+//						], // sort: { "_ValidFrom": -1 }
 						sorters: [{
 							property: "_ValidTo",
 							direction: "ASC"
@@ -168,21 +124,26 @@ this.add(fieldPicker);
 									});
 
 									var currentStateOfStory = "";
-									var currentStateOfStorySnapshot = Ext.Array.filter(recordsByStory, function (record) {
-										return record.get("_ValidTo").indexOf("9999") !== -1;
-									})[0];
+//									var currentStateOfStorySnapshot = Ext.Array.filter(recordsByStory, function (record) {
+//										return record.get("_ValidTo").indexOf("9999") !== -1;
+//									})[0];
+//console.log(recordsByStory.length);
+									var currentStateOfStorySnapshot = Ext.Array.push(recordsByStory[recordsByStory.length - 1]);
+//console.log(currentStateOfStorySnapshot);
 									if (currentStateOfStorySnapshot) {
-										currentStateOfStory = currentStateOfStorySnapshot.get(timeInField);
-//										console.log("GOOD state - ", recordsByStory);
+										currentStateOfStory = currentStateOfStorySnapshot[0].get(timeInField);
+										console.log("GOOD state - ", recordsByStory);
 									} else {
-//											console.log("not good state - ", recordsByStory);
+											console.log("not good state - ", recordsByStory);
 									}
 									var formattedID = recordsByStory[0].get("FormattedID");
 									var cycleTimes = {
 										id: formattedID,
 										name: recordsByStory[0].get("Name"),
+//										sprint: recordsByStory[0].get("Iteration"),
 //										planEstimate: shirtSizeLUT[Rally.util.Array.last(recordsByStory).get("PlanEstimate")],
-										planEstimate: Rally.util.Array.last(recordsByStory).get("PlanEstimate"),
+//										planEstimate: Rally.util.Array.last(recordsByStory).get("PlanEstimate"),
+planEstimate: 0,
 										currentStateOfStory: currentStateOfStory
 									};
 
@@ -201,7 +162,6 @@ this.add(fieldPicker);
 										}
 
 										var firstDate = new Date(currentSnapshot.get("_ValidFrom"));
-
 										var nextSnapshot = Rally.util.Array.last(Ext.Array.filter(recordsByStory, function (record) {
 											return record.get(timeInField) === currentStatus;
 										}));
@@ -209,12 +169,19 @@ this.add(fieldPicker);
 if (nextSnapshot) {
 cycleTimes.name = nextSnapshot.get("Name");
 }
-
 										var secondDate = new Date();
 
-										if (nextSnapshot && (new Date(nextSnapshot.get("_ValidTo"))).getFullYear() !== 9998)
+										if (nextSnapshot && (new Date(nextSnapshot.get("_ValidTo"))).getFullYear() !== 9998) {
 											secondDate = new Date(nextSnapshot.get("_ValidTo"));
-
+										} else {
+//											secondDate = new Date(self.getContext().getTimeboxScope().getRecord().get("EndDate"));
+var newDate = new Date()
+var month = newDate.getMonth() + 1
+var day = newDate.getDate()
+var year = newDate.getFullYear()
+											secondDate = new Date(year,month,day-1);
+										}
+// console.log(secondDate, firstDate);
 										var cycleTime = Rally.util.DateTime.getDifference(secondDate, firstDate, "day");
 										cycleTimes[currentStatus] = cycleTime;
 
@@ -240,8 +207,14 @@ cycleTimes.name = nextSnapshot.get("Name");
 								dataIndex: "name",
 								width: "280px"
 							}, {
-								text: "Size",
-								dataIndex: "planEstimate"
+								text: "Priority",
+								dataIndex: "Priority"
+							}, {
+								text: "Severity",
+								dataIndex: "Severity"
+							}, {
+								text: "Environment",
+								dataIndex: "Environment"
 							}, {
 								text: "Current State",
 								dataIndex: "currentStateOfStory"
@@ -269,55 +242,9 @@ cycleTimes.name = nextSnapshot.get("Name");
 						}
 					});
 				},
-
-				_onClickExport: function () {
-					if ( /*@cc_on!@*/ 0) { //Exporting to Excel not supported in IE
-						Ext.Msg.alert('Error', 'Exporting to CSV is not supported in Internet Explorer. Please switch to a different browser and try again.');
-					} else if (document.getElementById('mygrid')) {
-
-						Ext.getBody().mask('Exporting Items...');
-
-						setTimeout(function () {
-							var template = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-' +
-								'microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head>' +
-								'<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>' +
-								'{worksheet}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>' +
-								'</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table>{table}' +
-								'</table></body></html>';
-
-							var base64 = function (s) {
-								return window.btoa(unescape(encodeURIComponent(s)));
-							};
-							var format = function (s, c) {
-								return s.replace(/{(\w+)}/g, function (m, p) {
-									return c[p];
-								})
-							};
-							var table = document.getElementById('mygrid');
-
-							var excel_data = '<tr>';
-							Ext.Array.each(table.innerHTML.match(/<span .*?x-column-header-text.*?>.*?<\/span>/gm), function (column_header_span) {
-								excel_data += (column_header_span.replace(/span/g, 'td'));
-							});
-							excel_data += '</tr>';
-							Ext.Array.each(table.innerHTML.match(/<tr class="x-grid-row.*?<\/tr>/gm), function (line) {
-								excel_data += line.replace(/[^\011\012\015\040-\177]/g, '>>');
-							});
-
-							var ctx = {
-								worksheet: name || 'Worksheet',
-								table: excel_data
-							};
-							window.location.href = 'data:application/vnd.ms-excel;base64,' + base64(format(template, ctx));
-							Ext.getBody().unmask();
-						}, 500);
-					} else {
-						Ext.Msg.alert('Export Warning','You must select a date and run the report before you can export');
-					}
-				}
 			});
 
-			Rally.launchApp("CustomApp", {
+			Rally.launchApp("DefectAge", {
 				name: "My Custom App"
 			});
 		});

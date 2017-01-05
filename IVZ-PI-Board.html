@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Backlog Board</title>
+
+    <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
+
+    <script type="text/javascript">
+        Rally.onReady(function () {
+        	Ext.define('BLBoard', {
+	extend: 'Rally.app.App',
+	componentCls: 'app',
+	launch: function() {
+
+		var ppicker = null;
+		var cardBoardConfig = null;
+		var addNewConfig = null;
+		typeComboBox = this.add({
+			xtype: 'rallyportfolioitemtypecombobox',
+			listeners:{
+				change: function(combobox){
+// console.log(typeComboBox.getRecord());
+					piType = typeComboBox.getRecord().get('TypePath');
+					var piFields = ['PercentDoneByStoryPlanEstimate', 'Parent', 'Discussion'];
+					if (typeComboBox.getRecord().get('Ordinal') === 0) piFields.push('UserStories');
+						this._doBoard(piType, piFields);
+					},
+				scope: this
+			}
+		});
+	},
+	_doBoard: function (pitype, piFields) {
+		if ( this.piBoard ) { this.piBoard.destroy(); }
+		if ( this.addNew ) { this.addNew.destroy(); }
+		this.addNew = this.add({
+			xtype: 'rallyaddnew',
+			recordTypes: [pitype],
+			ignoredRequiredFields: ['Name', 'Project'],
+			listeners: {
+				create: function(addNew, record) {
+//	Ext.Msg.alert('Add New', 'Added record named ' + record.get('Name'));
+				}
+			},
+			showAddWithDetails: true
+		});
+		this.piBoard = this.add({
+                        xtype: 'rallycardboard',
+                        types: pitype,
+                        attribute: 'State',
+                        context: this.getContext(),
+                        enableRanking: true,
+                        cardConfig: {
+                            editable: true,
+                            showIconsAndHighlightBorder: true,
+                            showReadyIcon: true,
+                            showBlockedIcon: true,
+                            showColorIcon: true,
+                            showPlusIcon: true,
+                            showGearIcon: true,
+                            fields: piFields
+                        }
+
+		});
+	}
+});
+
+            Rally.launchApp('BLBoard', {
+                name:"Backlog Board",
+	            parentRepos:""
+            });
+
+        });
+    </script>
+
+
+    <style type="text/css">
+        .app {
+     /* Add app styles here */
+}
+
+    </style>
+</head>
+<body></body>
+</html>

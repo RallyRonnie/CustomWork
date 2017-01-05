@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WSJF_V3</title>
+
+    <script type="text/javascript" src="/apps/2.0/sdk.js"></script>
+
+    <script type="text/javascript">
+    var app;
+// FIELDS TO UPDATE
+//   Set stateValue to the value you would like to filter. Set to stateFilter to "" (empty) to see all
+//   Example: var stateFilter = [{property: "State.Name", operator: "=", value: stateValue}];
+//
+//	var stateValue = "Build";
+//    var stateFilter = [{property: "State.Name", operator: "=", value: stateValue}];
+        Rally.onReady(function () {
+Ext.define('CustomApp', {
+    extend: 'Rally.app.App',
+    componentCls: 'app',
+	launch: function() {
+		this._showMask("Loading Data");
+		this._loadFeatures();
+	},
+html: '<div align="right"><input type="button" value="Calculate" onClick="javascript: app._loadFeatures();"/> &nbsp;' +
+		'<div "font-family:arial,helvetica,sans-serif;font-size:12px;font-color:black" align="center">' +
+		'<table bgcolor="lightgray" border="2" style="font-color:black;">' +
+		'<tr><td><table border="0">' +
+		'<tr><td title="Weighted Shortest Job First" rowspan="3" style="padding: 10px">WSJF =</td>' +
+		'<td title="User Value - Relative business value of the Item" style="vertical-align: bottom;padding: 0 3px 0 10px;">User Value + </td>' +
+		'<td title="Time Value - This measure deals with the NEED of delivering something in a timescale." style="vertical-align: bottom;padding: 0 3px 0 0;">Time Value + </td>' +
+		'<td title="RR|OE Value - Relative value for the need of a business to eliminate risks earlier or the potential for new business opportunity to be derived from the Item" style="vertical-align: bottom;padding: 0 10px 0 0;">RR|OE Value</td>' +
+		'</tr><tr>' +
+		'<td colspan="3" style="height: 2px; vertical-align: middle; padding: 0 10px 0 10px;"><hr noshade></td>' +
+		'</tr><tr>' +
+		'<td colspan="3" title="Job Size - Time needed to implement the Item" style="text-align: center;vertical-align: top;">Job Size</td>' +
+		'</tr></table></td>' +
+		'<td style="text-align: center;padding:0 10px 0 10px;">' +
+		'<p>Scale for each Value should follow: 1, 2, 3, 5, 8, 13, 21</p>' +
+		'<p>Highest WSJF Score = Highest Priority</p></td></tr></table></div>',
+
+    _loadFeatures: function() {
+        Ext.create("Rally.data.WsapiDataStore", {
+            model: "userstory",
+            autoLoad: true,
+//			filters: stateFilter,
+            remoteSort: false,
+            listeners: {
+                load: function(store, records, success) {
+                console.log(store);
+                    this._calculateScore(records), this._updateGrid(store);
+                },
+                update: function(store, rec, modified, opts) {
+                    //console.log("calling store update");
+                    this._calculateScore([rec]);
+                },
+                scope: this
+            },
+            fetch: ["DragAndDropRank", "Rank", "Name", "FormattedID", "TimeCriticality", "RROEValue", "UserBusinessValue", "ValueScore", "JobSize"]
+        });
+    },
+    _calculateScore: function(records) {
+        Ext.Array.each(records, function(feature) {
+//            console.log("feature", feature.data);
+            var jobSize = feature.data.c_JobSize;
+            var timeValue = feature.data.c_TimeCriticality;
+            var OERR = feature.data.c_RROEValue;
+            var userValue = feature.data.c_UserBusinessValue;
+            var oldScore = feature.data.c_ValueScore;
+            console.log("Old Score ", oldScore);
+            if (jobSize > 0) { // jobSize is the denominator so make sure it's not 0
+                var score = Math.floor(((userValue + timeValue + OERR ) / jobSize) + 0.5);
+                console.log("newscore: ", score);
+//                if (oldScore !== score) { // only update if score changed
+                    feature.set('c_ValueScore', score); // set score value in db
+                    feature.save();
+                    console.log("Setting a new score", score);
+//                }
+            }
+        });
+    },
+	_showMask: function(msg) {
+		if ( this.getEl() ) { 
+			this.getEl().unmask();
+			this.getEl().mask(msg);
+		}
+	},
+	_hideMask: function() {
+		this.getEl().unmask();
+	},
+
+    _createGrid: function(myStore) {
+		if ( this._myGrid ) { this._myGrid.destroy(); }
+        this._myGrid = Ext.create("Rally.ui.grid.Grid", {
+            xtype: "rallygrid",
+            model: 'userstory',
+            title: "WSJF Scoring Grid: State = ", // + stateValue,
+            height: "98%",
+            enableRanking: true,
+            draggable: true,
+			showRowActionsColumn: true,
+//			showRankColumn: true,
+            store: myStore,
+            selType: "cellmodel",
+            columnCfgs: [
+				{
+					dataIndex: "DragAndDropRank",
+					maxWidth: 50
+				},
+                {
+                    text: "Portfolio ID",
+                    dataIndex: "FormattedID",
+                    flex: 1,
+                    xtype: "templatecolumn",
+                    tpl: Ext.create("Rally.ui.renderer.template.FormattedIDTemplate")
+                }, 
+                {
+                    text: "Name",
+                    dataIndex: "Name",
+                    flex: 2
+                }, 
+                "TimeCriticality", "RROEValue", "UserBusinessValue", "JobSize", 
+                {
+                    text: "Score",
+                    dataIndex: "ValueScore" // ,
+//                    editor: null
+                }
+            ]
+        }), 
+        this._hideMask();
+        this.add(this._myGrid);
+        app = this;
+        // override the event publish to prevent random refreshes of the whole app when the cell changes
+        var celledit = this._myGrid.plugins[0];
+        var oldPub = celledit.publish;
+        var newPub = function(event, varargs) {
+            if (event !== "objectupdate") {
+                oldPub.apply(this, arguments);
+            }
+            else {
+                // no-op
+            }
+        };
+
+        celledit.publish = Ext.bind(newPub, celledit);
+    },
+    _updateGrid: function(myStore) {
+        if (this._myGrid === undefined) {
+            this._createGrid(myStore);
+        }
+        else {
+            console.log("Refreshing Grid");
+            this._myGrid.reconfigure(myStore);
+            this._hideMask();
+        }
+    },
+	_displayDetails: function() {
+		
+	}
+
+});
+
+
+            Rally.launchApp('CustomApp', {
+                name:"WSJF_V3",
+	            parentRepos:""
+            });
+
+        });
+    </script>
+
+
+    <style type="text/css">
+        .app {
+     /* Add app styles here */
+}
+
+    </style>
+</head>
+<body></body>
+</html>
