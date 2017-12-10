@@ -2028,8 +2028,8 @@ The general structure of an incrementally update-able visualization follows thes
                       tooltip: {
                          formatter: function() {
                              var point = this.point;
-                             tooltip = 'ObjectID: ' + point.ObjectID + '<br />';  // !TODO: Upgrade to link to revisions page in Rally
-                             tooltip += this.series.name + ': <b>' + Highcharts.numberFormat(point.days, 1) + '</b> work days';
+//                             tooltip = 'ObjectID: ' + point.ObjectID + '<br />';  // !TODO: Upgrade to link to revisions page in Rally
+                             tooltip = this.series.name + ': <b>' + Highcharts.numberFormat(point.days, 1) + '</b> work days';
                              var t, _i, _len, _ref, f, field, as;
                              _ref = userConfig.showTheseFieldsInToolTip;
                              for (_i = 0, _len = _ref.length; _i < _len; _i++) {
